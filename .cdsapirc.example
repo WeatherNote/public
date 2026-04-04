@@ -1,0 +1,5 @@
+# Copy this file to ~/.cdsapirc and fill in your credentials.
+# Register / get your API key at: https://cds.climate.copernicus.eu/how-to-api
+
+url: https://cds.climate.copernicus.eu/api
+key: <your-api-key-here>
