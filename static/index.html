@@ -56,6 +56,19 @@
       border-radius: 6px; padding: 2px 8px; font-size: 0.78rem;
     }
     .tag button { background: none; border: none; color: #93c5fd; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0 0 2px; }
+    .tip-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #1e3a5f; color: #60a5fa; font-size: 9px; font-weight: 700;
+      cursor: help; margin-left: 4px; flex-shrink: 0;
+      border: 1px solid #2563eb55; line-height: 1; user-select: none;
+    }
+    #tooltip {
+      position: fixed; z-index: 9999; pointer-events: none;
+      background: #0f172a; border: 1px solid #334155; color: #cbd5e1;
+      padding: 7px 11px; border-radius: 8px; font-size: 11.5px; line-height: 1.5;
+      max-width: 240px; box-shadow: 0 4px 16px rgba(0,0,0,0.6); display: none;
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -92,17 +105,26 @@
   <aside class="w-60 shrink-0 border-r border-slate-800 p-4 overflow-y-auto flex flex-col gap-4" style="background:#0c1628">
 
     <div>
-      <p class="section-title" data-i18n="lbl_variable"></p>
+      <div class="flex items-center mb-2">
+        <span class="section-title flex-1" style="margin-bottom:0" data-i18n="lbl_variable"></span>
+        <span class="tip-icon" data-tip-en="Select the atmospheric or surface variable to map. Wind speed (ws10) also draws wind direction arrows." data-tip-ja="描画する変数を選択します。地上風速(ws10)は風向矢印も表示されます。">i</span>
+      </div>
       <select id="sel-var"></select>
     </div>
 
     <div>
-      <p class="section-title" data-i18n="lbl_region"></p>
+      <div class="flex items-center mb-2">
+        <span class="section-title flex-1" style="margin-bottom:0" data-i18n="lbl_region"></span>
+        <span class="tip-icon" data-tip-en="Select the map region. Northern Hemisphere uses polar stereographic projection; others use Plate Carrée or Robinson." data-tip-ja="地図の領域を選択します。北半球は極射影、その他は正距円筒図法またはロビンソン図法を使用します。">i</span>
+      </div>
       <select id="sel-region"></select>
     </div>
 
     <div>
-      <p class="section-title" data-i18n="lbl_maptype"></p>
+      <div class="flex items-center mb-2">
+        <span class="section-title flex-1" style="margin-bottom:0" data-i18n="lbl_maptype"></span>
+        <span class="tip-icon" data-tip-en="Mean: raw values. Anomaly: departure from the climatology period. Standardized: anomaly divided by standard deviation (unitless)." data-tip-ja="平均値: そのままの値。偏差: 平年値との差。標準化偏差: 偏差を標準偏差で割った値（単位なし）。">i</span>
+      </div>
       <div class="space-y-0.5">
         <label class="radio-row"><input type="radio" name="maptype" value="Mean" checked /> <span data-i18n="maptype_mean"></span></label>
         <label class="radio-row"><input type="radio" name="maptype" value="Anomaly (vs 1991–2020)" /> <span data-i18n="maptype_anom"></span></label>
@@ -111,7 +133,10 @@
     </div>
 
     <div>
-      <p class="section-title" data-i18n="lbl_clim"></p>
+      <div class="flex items-center mb-2">
+        <span class="section-title flex-1" style="margin-bottom:0" data-i18n="lbl_clim"></span>
+        <span class="tip-icon" data-tip-en="Reference period for computing anomalies and standardized anomalies." data-tip-ja="偏差・標準化偏差の計算に使う基準（平年値）期間を選択します。">i</span>
+      </div>
       <select id="sel-clim">
         <option>1951–1980</option><option>1961–1990</option>
         <option>1971–2000</option><option>1981–2010</option>
@@ -121,33 +146,38 @@
 
     <!-- Display settings -->
     <div>
-      <p class="section-title" data-i18n="lbl_display"></p>
+      <div class="flex items-center mb-2">
+        <span class="section-title flex-1" style="margin-bottom:0" data-i18n="lbl_display"></span>
+        <span class="tip-icon" data-tip-en="Override the default visual settings. Leave fields blank to use per-variable defaults." data-tip-ja="デフォルトの表示設定を上書きします。空欄のままにすると変数ごとのデフォルト値が使用されます。">i</span>
+      </div>
       <div class="space-y-2">
         <div class="grid grid-cols-2 gap-1.5">
           <div>
-            <label class="block text-xs text-slate-500 mb-0.5">vmin</label>
+            <label class="flex items-center gap-1 text-xs text-slate-500 mb-0.5">vmin<span class="tip-icon" data-tip-en="Minimum color scale value. Leave blank for the variable default." data-tip-ja="カラースケールの最小値。空欄でデフォルト値を使用。">i</span></label>
             <input type="number" id="disp-vmin" data-i18n-ph="auto" step="any" />
           </div>
           <div>
-            <label class="block text-xs text-slate-500 mb-0.5">vmax</label>
+            <label class="flex items-center gap-1 text-xs text-slate-500 mb-0.5">vmax<span class="tip-icon" data-tip-en="Maximum color scale value. Leave blank for the variable default." data-tip-ja="カラースケールの最大値。空欄でデフォルト値を使用。">i</span></label>
             <input type="number" id="disp-vmax" data-i18n-ph="auto" step="any" />
           </div>
         </div>
         <div>
-          <label class="block text-xs text-slate-500 mb-0.5" data-i18n="lbl_ci"></label>
+          <label class="flex items-center gap-1 text-xs text-slate-500 mb-0.5"><span data-i18n="lbl_ci"></span><span class="tip-icon" data-tip-en="Spacing between contour lines. Leave blank to use the variable default." data-tip-ja="コンター間隔。空欄で変数のデフォルト値を使用します。">i</span></label>
           <input type="number" id="disp-ci" data-i18n-ph="auto" step="any" min="0" />
         </div>
         <div>
-          <label class="block text-xs text-slate-500 mb-0.5" data-i18n="lbl_cmap"></label>
+          <label class="flex items-center gap-1 text-xs text-slate-500 mb-0.5"><span data-i18n="lbl_cmap"></span><span class="tip-icon" data-tip-en="Color palette for the filled contours. Default is chosen per variable and map type." data-tip-ja="塗りつぶしコンターの配色です。変数・マップタイプごとのデフォルト値が使われます。">i</span></label>
           <select id="disp-cmap"></select>
         </div>
         <label class="radio-row">
           <input type="checkbox" id="disp-labels" checked style="accent-color:#38bdf8" />
           <span data-i18n="lbl_show_labels"></span>
+          <span class="tip-icon" data-tip-en="Show or hide latitude/longitude grid labels on the map." data-tip-ja="地図上の緯度・経度ラベルの表示/非表示を切り替えます。">i</span>
         </label>
         <label class="radio-row" id="row-mean-overlay">
           <input type="checkbox" id="disp-mean-overlay" style="accent-color:#38bdf8" />
           <span data-i18n="lbl_mean_overlay"></span>
+          <span class="tip-icon" data-tip-en="Overlay thin contours of the mean field on the anomaly shading. Helps show the absolute pattern context." data-tip-ja="偏差の着色の上に平均値のコンターを重ねます。絶対値のパターン確認に役立ちます。">i</span>
         </label>
       </div>
     </div>
@@ -218,12 +248,13 @@
         <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_target_end"></label><input type="date" id="a-end" /></div>
       </div>
       <div class="grid grid-cols-2 gap-3 max-w-sm mb-3">
-        <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_n_analogs"></label><input type="number" id="n-analogs" value="5" min="3" max="10" /></div>
-        <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_search_from"></label><input type="number" id="search-from" value="1950" min="1950" max="2020" /></div>
+        <div><label class="flex items-center gap-1 text-xs text-slate-500 mb-1"><span data-i18n="lbl_n_analogs"></span><span class="tip-icon" data-tip-en="Number of best-matching historical years to return." data-tip-ja="検索して返すアナログ年の数を指定します。">i</span></label><input type="number" id="n-analogs" value="5" min="3" max="10" /></div>
+        <div><label class="flex items-center gap-1 text-xs text-slate-500 mb-1"><span data-i18n="lbl_search_from"></span><span class="tip-icon" data-tip-en="Earliest year to include in the analog search. ERA5 is available from 1940." data-tip-ja="アナログ年の検索開始年です。ERA5は1940年から利用可能です。">i</span></label><input type="number" id="search-from" value="1950" min="1950" max="2020" /></div>
       </div>
       <label class="radio-row mb-4">
         <input type="checkbox" id="use-anomaly" checked style="accent-color:#38bdf8" />
         <span data-i18n="lbl_use_anomaly"></span>
+        <span class="tip-icon" data-tip-en="Compare anomaly patterns instead of raw values. Removes the mean seasonal cycle and focuses on circulation differences." data-tip-ja="絶対値ではなく偏差パターンで比較します。季節変化を除去し、循環の違いに着目できます。">i</span>
       </label>
       <button class="btn-primary" id="btn-analog" onclick="findAnalogs()" data-i18n="btn_find_analogs"></button>
       <div id="analog-status" class="mt-4 hidden flex items-center gap-3 text-slate-400 text-sm">
@@ -674,7 +705,30 @@ document.addEventListener('DOMContentLoaded', () => {
   updateMeanOverlayVisibility();
 });
 
+// ── Tooltips ──────────────────────────────────────────────────────
+{
+  const tt = document.getElementById('tooltip');
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('.tip-icon');
+    if (!el) return;
+    const text = S.lang === 'ja' ? el.dataset.tipJa : el.dataset.tipEn;
+    if (!text) return;
+    tt.textContent = text; tt.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    if (tt.style.display === 'none') return;
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if (x + 260 > window.innerWidth)  x = e.clientX - 260;
+    if (y + 100 > window.innerHeight) y = e.clientY - 100;
+    tt.style.left = x + 'px'; tt.style.top = y + 'px';
+  });
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest('.tip-icon')) tt.style.display = 'none';
+  });
+}
+
 init();
 </script>
+<div id="tooltip"></div>
 </body>
 </html>
