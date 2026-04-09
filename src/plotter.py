@@ -274,8 +274,9 @@ class WeatherMapPlotter:
                 pass  # keep all data
             elif full_lon:
                 mlm = (m_lats >= lat_min) & (m_lats <= lat_max)
+                orig_nlat = len(m_lats)
                 m_lats = m_lats[mlm]
-                if m_vals.shape[0] == len(m_lats[~mlm]) + mlm.sum():
+                if m_vals.shape[0] == orig_nlat:
                     m_vals = m_vals[mlm, :]
             else:
                 mlm = (m_lats >= lat_min) & (m_lats <= lat_max)
