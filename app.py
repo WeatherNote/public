@@ -13,7 +13,6 @@ See: https://cds.climate.copernicus.eu/how-to-api
 
 from __future__ import annotations
 
-import io
 from datetime import date, timedelta
 
 import matplotlib
@@ -36,16 +35,92 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.title("Analog Year Weather Maps")
+# ---------------------------------------------------------------------------
+# Custom CSS — modern dark-card theme
+# ---------------------------------------------------------------------------
+st.markdown("""
+<style>
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background: #0f172a;
+    border-right: 1px solid #1e293b;
+}
+[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+[data-testid="stSidebar"] .stSelectbox label,
+[data-testid="stSidebar"] .stRadio label,
+[data-testid="stSidebar"] .stSlider label { color: #94a3b8 !important; font-size: 0.78rem !important; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ── Main area ── */
+[data-testid="stAppViewContainer"] > .main { background: #0f172a; }
+.block-container { padding-top: 1.5rem !important; }
+
+/* ── Headings ── */
+h1 { font-size: 1.9rem !important; font-weight: 800 !important; color: #f8fafc !important; letter-spacing: -0.02em; }
+h2, h3 { color: #e2e8f0 !important; }
+p, li, label, .stMarkdown { color: #cbd5e1 !important; }
+
+/* ── Tabs ── */
+[data-testid="stTabs"] [role="tab"] {
+    color: #94a3b8 !important;
+    font-weight: 600;
+    border-radius: 8px 8px 0 0;
+}
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: #38bdf8 !important;
+    border-bottom: 2px solid #38bdf8 !important;
+}
+
+/* ── Buttons ── */
+[data-testid="stButton"] > button {
+    background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%) !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-weight: 700 !important;
+    padding: 0.55rem 2.2rem !important;
+    transition: opacity 0.15s ease;
+}
+[data-testid="stButton"] > button:hover { opacity: 0.85 !important; }
+
+/* ── Input widgets ── */
+[data-testid="stDateInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stSelectbox"] div[data-baseweb="select"] {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    color: #f1f5f9 !important;
+    border-radius: 8px !important;
+}
+
+/* ── Expanders / cards ── */
+[data-testid="stExpander"] {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 10px !important;
+}
+
+/* ── Dataframe ── */
+[data-testid="stDataFrame"] { border-radius: 10px; overflow: hidden; }
+
+/* ── Divider ── */
+hr { border-color: #1e293b !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Header
+# ---------------------------------------------------------------------------
+st.title("🌏 Analog Year Weather Maps")
 st.caption(
-    "ERA5 reanalysis  •  data updated within ~5 days of real-time via Copernicus CDS"
+    "ERA5 reanalysis  •  ~5-day lag via Copernicus CDS  •  "
+    "Inspired by [NOAA PSL Composites](https://psl.noaa.gov/cgi-bin/data/composites/printpage.pl)"
 )
 
 # ---------------------------------------------------------------------------
 # Sidebar — shared settings
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.header("Settings")
+    st.markdown("## ⚙️ Settings")
 
     var_key = st.selectbox(
         "Variable",
@@ -71,24 +146,38 @@ with st.sidebar:
 
     st.divider()
     st.caption(
-        "Data source: [ERA5 / Copernicus CDS](https://cds.climate.copernicus.eu/)  \n"
-        "Inspired by [NOAA PSL Composites](https://psl.noaa.gov/cgi-bin/data/composites/printpage.pl)"
+        "Data: [ERA5 / Copernicus CDS](https://cds.climate.copernicus.eu/)"
     )
 
 # ---------------------------------------------------------------------------
-# Helper: plot and display
+# Helpers
 # ---------------------------------------------------------------------------
 plotter = WeatherMapPlotter()
 fetcher = ERA5Fetcher()
 
 
-def render_map(data, title: str) -> None:
+def _get_wind_uv(ds, time_mean: bool = True):
+    """Return (u, v) for ws10 maps, or None for other variables."""
+    if var_key != "ws10":
+        return None
+    try:
+        u, v = fetcher.extract_wind_components(ds)
+        if time_mean and "time" in u.dims:
+            u = u.mean(dim="time")
+            v = v.mean(dim="time")
+        return u, v
+    except Exception:
+        return None
+
+
+def render_map(data, title: str, wind_uv=None) -> None:
     fig = plotter.plot_map(
         data=data,
         var_key=var_key,
         region=region,
         title=title,
         plot_type=plot_type,
+        wind_uv=wind_uv,
     )
     img_bytes = plotter.fig_to_bytes(fig, dpi=150)
     st.image(img_bytes, use_container_width=True)
@@ -115,10 +204,10 @@ tab_composite, tab_analog = st.tabs(
 # ║  TAB 1 — Composite Map                                      ║
 # ╚══════════════════════════════════════════════════════════════╝
 with tab_composite:
-    st.subheader("Composite Map")
+    st.markdown("### Composite Map")
     st.markdown(
-        "Choose a date range. For recent dates (within ~60 days) the app uses "
-        "ERA5T daily data; for older periods it uses monthly means."
+        "Choose a date range. Recent periods (within ~60 days) use ERA5T daily data; "
+        "longer periods use monthly means."
     )
 
     col1, col2 = st.columns(2)
@@ -150,14 +239,14 @@ with tab_composite:
                     period_days = (c_end - c_start).days
 
                     if days_ago < 60 or period_days < 20:
-                        # Daily mode for recent / short periods
                         ds = fetcher.fetch_daily(var_key, c_start, c_end)
                         field = fetcher.extract(ds, var_key).mean(dim="time")
+                        wind_uv = _get_wind_uv(ds, time_mean=True)
                     else:
-                        # Monthly mode for longer historical periods
                         year_list = list(range(c_start.year, c_end.year + 1))
                         ds = fetcher.fetch_monthly(var_key, year_list, months)
                         field = fetcher.extract(ds, var_key).mean(dim="time")
+                        wind_uv = _get_wind_uv(ds, time_mean=True)
 
                     if "Anomaly" in plot_type:
                         field = apply_anomaly(field, months)
@@ -166,7 +255,7 @@ with tab_composite:
                         f"{VARIABLES[var_key]['label']}\n"
                         f"{c_start} – {c_end}  •  {plot_type}"
                     )
-                    render_map(field, title)
+                    render_map(field, title, wind_uv=wind_uv)
 
                 except Exception as exc:
                     st.error(f"Error: {exc}")
@@ -179,7 +268,7 @@ with tab_composite:
 # ║  TAB 2 — Analog Year Finder                                 ║
 # ╚══════════════════════════════════════════════════════════════╝
 with tab_analog:
-    st.subheader("Analog Year Finder")
+    st.markdown("### Analog Year Finder")
     st.markdown(
         "Select a target period. The tool finds historical years whose large-scale "
         "pattern (area-weighted pattern correlation) most closely resembles it."
@@ -244,7 +333,7 @@ with tab_analog:
                     st.dataframe(df.set_index("Year"), use_container_width=True)
 
                     # ── Maps ─────────────────────────────────────────
-                    st.subheader("Maps")
+                    st.markdown("### Maps")
                     months = sorted(
                         {d.month for d in pd.date_range(str(a_start), str(a_end))}
                     )
@@ -262,10 +351,12 @@ with tab_analog:
                         if "Anomaly" in plot_type:
                             target_field = apply_anomaly(target_field, months)
 
+                        wind_uv = _get_wind_uv(target_ds, time_mean=True)
                         st.markdown(f"**Target period: {a_start} – {a_end}**")
                         render_map(
                             target_field,
                             f"TARGET  {a_start} – {a_end}  •  {VARIABLES[var_key]['label']}",
+                            wind_uv=wind_uv,
                         )
 
                     # Analog year maps
@@ -281,10 +372,12 @@ with tab_analog:
                             if "Anomaly" in plot_type:
                                 year_field = apply_anomaly(year_field, months)
 
+                            wind_uv = _get_wind_uv(year_ds, time_mean=True)
                             st.markdown(f"**Analog: {yr}** &nbsp;(r = {r:.3f})")
                             render_map(
                                 year_field,
                                 f"ANALOG {yr}  ({y_start} – {y_end})  r = {r:.3f}",
+                                wind_uv=wind_uv,
                             )
 
                 except Exception as exc:

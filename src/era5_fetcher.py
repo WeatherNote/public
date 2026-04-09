@@ -191,6 +191,41 @@ VARIABLES: dict[str, dict] = {
         "clim_range": (-3, 3),
         "typical_range": (-2, 32),
     },
+    "ws10": {
+        "label": "10 m Wind Speed",
+        "era5_name": "10m_u_component_of_wind",  # fetched specially; see _fetch_ws10_*
+        "era5_short": "ws10",
+        "level": None,
+        "dataset_daily": "reanalysis-era5-single-levels",
+        "dataset_monthly": "reanalysis-era5-single-levels-monthly-means",
+        "product_type_monthly": "monthly_averaged_reanalysis",
+        "scale": 1.0,
+        "offset": 0.0,
+        "units": "m/s",
+        "cmap_mean": "YlOrRd",
+        "cmap_anom": "RdBu_r",
+        "contour_interval": 2,
+        "clim_range": (-5, 5),
+        "typical_range": (0, 20),
+        "derived": True,
+    },
+    "olr": {
+        "label": "Outgoing Longwave Radiation",
+        "era5_name": "top_net_thermal_radiation",
+        "era5_short": "ttr",
+        "level": None,
+        "dataset_daily": "reanalysis-era5-single-levels",
+        "dataset_monthly": "reanalysis-era5-single-levels-monthly-means",
+        "product_type_monthly": "monthly_averaged_reanalysis",
+        "scale": -1.0 / 86400,  # J/m²/day → W/m²; negate (ERA5 net = down−up)
+        "offset": 0.0,
+        "units": "W/m²",
+        "cmap_mean": "inferno_r",
+        "cmap_anom": "RdBu",
+        "contour_interval": 10,
+        "clim_range": (-30, 30),
+        "typical_range": (150, 320),
+    },
 }
 
 # Short name lookup built automatically
@@ -245,6 +280,68 @@ class ERA5Fetcher:
         return ds
 
     # ------------------------------------------------------------------
+    # Wind speed (derived: u10 + v10 → speed + keep components)
+    # ------------------------------------------------------------------
+    def _fetch_ws10_monthly(self, years: list[int], months: list[int]) -> xr.Dataset:
+        cache_path = self._cache_path("ws10_mon", years=sorted(years), months=sorted(months))
+        if not cache_path.exists():
+            req = {
+                "product_type": "monthly_averaged_reanalysis",
+                "variable": ["10m_u_component_of_wind", "10m_v_component_of_wind"],
+                "year": [str(y) for y in sorted(set(years))],
+                "month": [f"{m:02d}" for m in sorted(set(months))],
+                "time": "00:00",
+                "format": "netcdf",
+                "grid": "2.5/2.5",
+            }
+            self.client.retrieve(
+                "reanalysis-era5-single-levels-monthly-means", req, str(cache_path)
+            )
+        ds = self._normalize_time(xr.open_dataset(cache_path))
+        u = ds.get("u10", ds.get("10m_u_component_of_wind"))
+        v = ds.get("v10", ds.get("10m_v_component_of_wind"))
+        ds["ws10"] = np.sqrt(u**2 + v**2)
+        return ds
+
+    def _fetch_ws10_daily(self, start_date: date, end_date: date) -> xr.Dataset:
+        date_range = pd.date_range(str(start_date), str(end_date))
+        years = sorted({int(d.year) for d in date_range})
+        months = sorted({int(d.month) for d in date_range})
+        days = sorted({int(d.day) for d in date_range})
+        cache_path = self._cache_path("ws10_6h", years=years, months=months, days=days)
+        if not cache_path.exists():
+            req = {
+                "product_type": "reanalysis",
+                "variable": ["10m_u_component_of_wind", "10m_v_component_of_wind"],
+                "year": [str(y) for y in years],
+                "month": [f"{m:02d}" for m in months],
+                "day": [f"{d:02d}" for d in days],
+                "time": ["00:00", "06:00", "12:00", "18:00"],
+                "format": "netcdf",
+                "grid": "2.5/2.5",
+            }
+            self.client.retrieve(
+                "reanalysis-era5-single-levels", req, str(cache_path)
+            )
+        ds = self._normalize_time(xr.open_dataset(cache_path))
+        ds = ds.sel(time=slice(str(start_date), str(end_date)))
+        ds = ds.resample(time="1D").mean()
+        u = ds.get("u10", ds.get("10m_u_component_of_wind"))
+        v = ds.get("v10", ds.get("10m_v_component_of_wind"))
+        ds["ws10"] = np.sqrt(u**2 + v**2)
+        return ds
+
+    def extract_wind_components(
+        self, ds: xr.Dataset
+    ) -> tuple[xr.DataArray, xr.DataArray]:
+        """Return (u10, v10) DataArrays from a ws10 dataset."""
+        u = ds.get("u10", ds.get("10m_u_component_of_wind"))
+        v = ds.get("v10", ds.get("10m_v_component_of_wind"))
+        if u is None or v is None:
+            raise KeyError("u10/v10 not found in dataset")
+        return u, v
+
+    # ------------------------------------------------------------------
     # Monthly means  (efficient batch download)
     # ------------------------------------------------------------------
     def fetch_monthly(
@@ -258,6 +355,9 @@ class ERA5Fetcher:
         cache_path = self._cache_path(
             f"{var_key}_mon", years=sorted(years), months=sorted(months)
         )
+
+        if var_info.get("derived"):
+            return self._fetch_ws10_monthly(years, months)
 
         if not cache_path.exists():
             req: dict = {
@@ -290,6 +390,9 @@ class ERA5Fetcher:
         Automatically includes ERA5T preliminary back-extension for recent dates.
         """
         var_info = VARIABLES[var_key]
+        if var_info.get("derived"):
+            return self._fetch_ws10_daily(start_date, end_date)
+
         date_range = pd.date_range(str(start_date), str(end_date))
         years = sorted({int(d.year) for d in date_range})
         months = sorted({int(d.month) for d in date_range})
@@ -352,6 +455,15 @@ class ERA5Fetcher:
     def extract(self, ds: xr.Dataset, var_key: str) -> xr.DataArray:
         """Extract the target variable from a Dataset and apply unit conversion."""
         var_info = VARIABLES[var_key]
+
+        # Derived wind speed: already stored as 'ws10' by _fetch_ws10_*
+        if var_info.get("derived") and "ws10" in ds:
+            da = ds["ws10"]
+            squeeze_dims = [d for d in da.dims if d != "time" and da.sizes[d] == 1]
+            if squeeze_dims:
+                da = da.squeeze(squeeze_dims, drop=True)
+            return da
+
         era5_short = var_info["era5_short"]
         era5_long = var_info["era5_name"]
 

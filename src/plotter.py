@@ -90,6 +90,7 @@ class WeatherMapPlotter:
         title: str = "",
         plot_type: str = "Mean",
         figsize: tuple[float, float] = (11, 6.5),
+        wind_uv: tuple[xr.DataArray, xr.DataArray] | None = None,
     ) -> plt.Figure:
         """
         Parameters
@@ -192,6 +193,55 @@ class WeatherMapPlotter:
                 linewidths=1.0,
                 linestyles="--",
                 transform=ccrs.PlateCarree(),
+            )
+
+        # ------------------------------------------------------------------
+        # Wind vectors (quiver) — only when wind_uv is supplied
+        # ------------------------------------------------------------------
+        if wind_uv is not None:
+            u_da, v_da = wind_uv
+            u_lat = "latitude" if "latitude" in u_da.coords else "lat"
+            u_lon = "longitude" if "longitude" in u_da.coords else "lon"
+            u_lats = u_da.coords[u_lat].values
+            u_lons = u_da.coords[u_lon].values
+            u_vals = u_da.values
+            v_vals = v_da.values
+
+            # Make lons -180..180
+            if u_lons.max() > 180:
+                shift = u_lons > 180
+                u_lons = u_lons.copy()
+                u_lons[shift] -= 360
+                sort_idx = np.argsort(u_lons)
+                u_lons = u_lons[sort_idx]
+                if u_vals.shape == (len(u_lats), len(u_lons)):
+                    u_vals = u_vals[:, sort_idx]
+                    v_vals = v_vals[:, sort_idx]
+
+            # Subset to region
+            u_lat_mask = (u_lats >= lat_min) & (u_lats <= lat_max)
+            u_lon_mask = (u_lons >= lon_min) & (u_lons <= lon_max)
+            u_lats_s = u_lats[u_lat_mask]
+            u_lons_s = u_lons[u_lon_mask]
+            if u_vals.shape == (len(u_lats), len(u_lons)):
+                u_sub = u_vals[np.ix_(u_lat_mask, u_lon_mask)]
+                v_sub = v_vals[np.ix_(u_lat_mask, u_lon_mask)]
+            else:
+                u_sub, v_sub = u_vals, v_vals
+
+            # Subsample to avoid clutter (every ~5° → stride ≈ 2 for 2.5° grid)
+            stride = max(1, len(u_lats_s) // 20)
+            ax.quiver(
+                u_lons_s[::stride],
+                u_lats_s[::stride],
+                u_sub[::stride, ::stride],
+                v_sub[::stride, ::stride],
+                transform=ccrs.PlateCarree(),
+                scale=200,
+                width=0.003,
+                color="k",
+                alpha=0.7,
+                zorder=6,
             )
 
         # ------------------------------------------------------------------
