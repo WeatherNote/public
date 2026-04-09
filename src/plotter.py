@@ -281,9 +281,9 @@ class WeatherMapPlotter:
             else:
                 mlm = (m_lats >= lat_min) & (m_lats <= lat_max)
                 mll = (m_lons >= lon_min) & (m_lons <= lon_max)
+                orig_nlat = len(m_lats)
+                orig_nlon = len(m_lons)
                 m_lats = m_lats[mlm]; m_lons = m_lons[mll]
-                orig_nlat = len(m_lats[~mlm]) + mlm.sum()
-                orig_nlon = len(m_lons[~mll]) + mll.sum()
                 if m_vals.shape == (orig_nlat, orig_nlon):
                     m_vals = m_vals[np.ix_(mlm, mll)]
             if _HAS_CYCLIC and full_lon:
@@ -361,8 +361,11 @@ class WeatherMapPlotter:
             gl.top_labels = False
             gl.right_labels = False
 
-        # Extent (skip for full-globe Robinson projections)
-        if not full_globe:
+        # Extent: skip for full-globe, and for polar stereo with full-lon
+        # (set_extent with ±180° lon on NorthPolarStereo clips incorrectly)
+        proj_type = region.get("projection", "platecarree")
+        skip_extent = full_globe or (full_lon and proj_type in ("stereo_north", "stereo_south"))
+        if not skip_extent:
             try:
                 ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
             except Exception:
