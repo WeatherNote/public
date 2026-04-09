@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.era5_fetcher import ERA5Fetcher, VARIABLES
-from src.plotter import WeatherMapPlotter, REGIONS
+from src.plotter import WeatherMapPlotter, REGIONS, COLORMAPS
 from src.analog_finder import AnalogFinder
 
 app = FastAPI(title="Analog Year Weather Maps")
@@ -61,6 +61,23 @@ def _apply_anomaly(field, var_key, months, clim_start, clim_end, plot_type):
     return anom
 
 
+def _make_map(field, wind_uv, req_dict: dict, region: dict, title: str):
+    """Render a map using display settings from request dict."""
+    return plotter.plot_map(
+        data=field,
+        var_key=req_dict["var_key"],
+        region=region,
+        title=title,
+        plot_type=req_dict["plot_type"],
+        wind_uv=wind_uv,
+        vmin=req_dict.get("disp_vmin"),
+        vmax=req_dict.get("disp_vmax"),
+        contour_interval=req_dict.get("disp_ci") or None,
+        cmap=req_dict.get("disp_cmap") or None,
+        draw_labels=req_dict.get("disp_labels", True),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Metadata endpoints
 # ---------------------------------------------------------------------------
@@ -78,56 +95,115 @@ def get_regions():
     return list(REGIONS.keys())
 
 
+@app.get("/api/colormaps")
+def get_colormaps():
+    return COLORMAPS
+
+
+@app.get("/api/status")
+def data_status():
+    """Return estimated latest available ERA5 date."""
+    latest = date.today() - timedelta(days=5)
+    return {
+        "latest_available": str(latest),
+        "lag_days": 5,
+        "message": f"ERA5 data available up to approx. {latest} (~5-day lag)",
+    }
+
+
+@app.post("/api/fetch_latest")
+def fetch_latest():
+    """Pre-fetch the latest available daily data for a common variable (z500)."""
+    try:
+        latest = date.today() - timedelta(days=5)
+        start = latest - timedelta(days=6)
+        fetcher.fetch_daily("z500", start, latest)
+        return {"ok": True, "fetched_through": str(latest)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # ---------------------------------------------------------------------------
-# Composite map
+# Display settings model (shared by composite + analog)
 # ---------------------------------------------------------------------------
 
-class CompositeRequest(BaseModel):
+class DisplaySettings(BaseModel):
+    disp_vmin: float | None = None
+    disp_vmax: float | None = None
+    disp_ci: float | None = None
+    disp_cmap: str | None = None
+    disp_labels: bool = True
+
+
+# ---------------------------------------------------------------------------
+# Composite map  (single period OR multi-year)
+# ---------------------------------------------------------------------------
+
+class CompositeRequest(DisplaySettings):
     var_key: str
-    start_date: str
-    end_date: str
     region_name: str
     plot_type: str
     clim_start: int = 1991
     clim_end: int = 2020
+    # Single-period mode
+    start_date: str | None = None
+    end_date: str | None = None
+    # Multi-year mode
+    multi_years: list[int] | None = None
+    multi_months: list[int] | None = None  # 1-12
 
 
 @app.post("/api/composite")
 def composite_map(req: CompositeRequest):
     try:
-        start = date.fromisoformat(req.start_date)
-        end = date.fromisoformat(req.end_date)
         region = REGIONS[req.region_name]
-        months = sorted({d.month for d in pd.date_range(str(start), str(end))})
-        days_ago = (date.today() - end).days
-        period_days = (end - start).days
+        req_d = req.model_dump()
 
-        if days_ago < 60 or period_days < 20:
-            ds = fetcher.fetch_daily(req.var_key, start, end)
-        else:
-            year_list = list(range(start.year, end.year + 1))
-            ds = fetcher.fetch_monthly(req.var_key, year_list, months)
-
-        field = fetcher.extract(ds, req.var_key).mean(dim="time")
-
-        if "Anomaly" in req.plot_type:
-            field = _apply_anomaly(
-                field, req.var_key, months, req.clim_start, req.clim_end, req.plot_type
+        # ── Multi-year mode ──────────────────────────────────────────
+        if req.multi_years and req.multi_months:
+            months = sorted(req.multi_months)
+            ds = fetcher.fetch_monthly(req.var_key, req.multi_years, months)
+            field = fetcher.extract(ds, req.var_key).mean(dim="time")
+            wind_uv = _get_wind_uv(ds, req.var_key)
+            if "Anomaly" in req.plot_type:
+                field = _apply_anomaly(
+                    field, req.var_key, months, req.clim_start, req.clim_end, req.plot_type
+                )
+            yrs_str = ", ".join(str(y) for y in sorted(req.multi_years))
+            mon_str = ", ".join(str(m) for m in months)
+            title = (
+                f"{VARIABLES[req.var_key]['label']}\n"
+                f"Years: {yrs_str}  Months: {mon_str}  •  {req.plot_type}"
             )
 
-        wind_uv = _get_wind_uv(ds, req.var_key)
-        title = (
-            f"{VARIABLES[req.var_key]['label']}\n"
-            f"{start} – {end}  •  {req.plot_type}"
-        )
-        fig = plotter.plot_map(
-            data=field,
-            var_key=req.var_key,
-            region=region,
-            title=title,
-            plot_type=req.plot_type,
-            wind_uv=wind_uv,
-        )
+        # ── Single-period mode ───────────────────────────────────────
+        else:
+            if not req.start_date or not req.end_date:
+                raise ValueError("Provide start_date/end_date or multi_years/multi_months")
+            start = date.fromisoformat(req.start_date)
+            end = date.fromisoformat(req.end_date)
+            months = sorted({d.month for d in pd.date_range(str(start), str(end))})
+            days_ago = (date.today() - end).days
+            period_days = (end - start).days
+
+            if days_ago < 60 or period_days < 20:
+                ds = fetcher.fetch_daily(req.var_key, start, end)
+            else:
+                year_list = list(range(start.year, end.year + 1))
+                ds = fetcher.fetch_monthly(req.var_key, year_list, months)
+
+            field = fetcher.extract(ds, req.var_key).mean(dim="time")
+            wind_uv = _get_wind_uv(ds, req.var_key)
+            if "Anomaly" in req.plot_type:
+                field = _apply_anomaly(
+                    field, req.var_key, months, req.clim_start, req.clim_end, req.plot_type
+                )
+            title = (
+                f"{VARIABLES[req.var_key]['label']}\n"
+                f"{start} – {end}  •  {req.plot_type}"
+            )
+
+        fig = _make_map(field, wind_uv, req_d, region, title)
         return {"image": _fig_b64(fig)}
 
     except Exception as exc:
@@ -135,10 +211,10 @@ def composite_map(req: CompositeRequest):
 
 
 # ---------------------------------------------------------------------------
-# Analog year finder  (SSE — streams progress to client)
+# Analog year finder  (Server-Sent Events)
 # ---------------------------------------------------------------------------
 
-class AnalogRequest(BaseModel):
+class AnalogRequest(DisplaySettings):
     var_key: str
     start_date: str
     end_date: str
@@ -153,8 +229,6 @@ class AnalogRequest(BaseModel):
 
 @app.post("/api/analog")
 def find_analogs(req: AnalogRequest):
-    """Server-Sent Events stream — yields JSON lines prefixed with 'data: '."""
-
     def generate():
         def send(obj: dict) -> str:
             return f"data: {json.dumps(obj)}\n\n"
@@ -164,6 +238,7 @@ def find_analogs(req: AnalogRequest):
             end = date.fromisoformat(req.end_date)
             region = REGIONS[req.region_name]
             months = sorted({d.month for d in pd.date_range(str(start), str(end))})
+            req_d = req.model_dump()
 
             yield send({"status": "Searching for analog years…"})
 
@@ -179,13 +254,8 @@ def find_analogs(req: AnalogRequest):
                 use_anomaly=req.use_anomaly,
             )
 
-            # Serialise analogs (dates → strings)
             analogs_json = [
-                {
-                    **a,
-                    "start_date": str(a["start_date"]),
-                    "end_date": str(a["end_date"]),
-                }
+                {**a, "start_date": str(a["start_date"]), "end_date": str(a["end_date"])}
                 for a in analogs
             ]
             yield send({"status": "Plotting maps…", "analogs": analogs_json})
@@ -204,15 +274,10 @@ def find_analogs(req: AnalogRequest):
                     target_field, req.var_key, months,
                     req.clim_start, req.clim_end, req.plot_type
                 )
-
             wind_uv = _get_wind_uv(target_ds, req.var_key)
-            fig = plotter.plot_map(
-                data=target_field,
-                var_key=req.var_key,
-                region=region,
-                title=f"TARGET  {start} – {end}  •  {VARIABLES[req.var_key]['label']}",
-                plot_type=req.plot_type,
-                wind_uv=wind_uv,
+            fig = _make_map(
+                target_field, wind_uv, req_d, region,
+                f"TARGET  {start} – {end}  •  {VARIABLES[req.var_key]['label']}",
             )
             yield send({"target_image": _fig_b64(fig)})
 
@@ -222,7 +287,6 @@ def find_analogs(req: AnalogRequest):
                 r = analog["correlation"]
                 y_start = analog["start_date"]
                 y_end = analog["end_date"]
-
                 year_ds = fetcher.fetch_monthly(req.var_key, [yr], months)
                 year_field = fetcher.extract(year_ds, req.var_key).mean(dim="time")
                 if "Anomaly" in req.plot_type:
@@ -231,13 +295,9 @@ def find_analogs(req: AnalogRequest):
                         req.clim_start, req.clim_end, req.plot_type
                     )
                 wind_uv = _get_wind_uv(year_ds, req.var_key)
-                fig = plotter.plot_map(
-                    data=year_field,
-                    var_key=req.var_key,
-                    region=region,
-                    title=f"ANALOG {yr}  ({y_start} – {y_end})  r = {r:.3f}",
-                    plot_type=req.plot_type,
-                    wind_uv=wind_uv,
+                fig = _make_map(
+                    year_field, wind_uv, req_d, region,
+                    f"ANALOG {yr}  ({y_start} – {y_end})  r = {r:.3f}",
                 )
                 yield send({"analog_image": {"year": yr, "r": r, "image": _fig_b64(fig)}})
 

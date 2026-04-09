@@ -5,7 +5,6 @@ Map plotting using Matplotlib + Cartopy.
 from __future__ import annotations
 
 import io
-from typing import Optional
 
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend
@@ -13,9 +12,14 @@ matplotlib.use("Agg")  # non-interactive backend
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
 import xarray as xr
+
+try:
+    from cartopy.util import add_cyclic_point
+    _HAS_CYCLIC = True
+except ImportError:
+    _HAS_CYCLIC = False
 
 from .era5_fetcher import VARIABLES
 
@@ -27,11 +31,31 @@ REGIONS: dict[str, dict] = {
         "lat": (20, 90),
         "lon": (-180, 180),
         "projection": "stereo_north",
+        "central_longitude": 0,
     },
-    "Global": {
+    "Northern Hemisphere (Japan)": {
+        "lat": (20, 90),
+        "lon": (-180, 180),
+        "projection": "stereo_north",
+        "central_longitude": 140,
+    },
+    "Northern Hemisphere (N. America)": {
+        "lat": (20, 90),
+        "lon": (-180, 180),
+        "projection": "stereo_north",
+        "central_longitude": -100,
+    },
+    "Global (0° center)": {
         "lat": (-90, 90),
         "lon": (-180, 180),
         "projection": "robinson",
+        "central_longitude": 0,
+    },
+    "Global (180° center)": {
+        "lat": (-90, 90),
+        "lon": (-180, 180),
+        "projection": "robinson",
+        "central_longitude": 180,
     },
     "North Pacific / North America": {
         "lat": (15, 75),
@@ -60,14 +84,27 @@ REGIONS: dict[str, dict] = {
     },
 }
 
+COLORMAPS = [
+    "RdBu_r", "RdBu", "coolwarm", "bwr",
+    "RdYlBu_r", "RdYlBu", "seismic",
+    "BrBG", "PRGn", "PiYG",
+    "viridis", "plasma", "inferno", "magma",
+    "YlOrRd", "OrRd", "BuGn", "BuPu",
+    "jet", "turbo",
+]
+
 
 def _make_projection(region: dict) -> ccrs.Projection:
     proj_type = region.get("projection", "platecarree")
-    lat = region["lat"]
-    lon = region["lon"]
-    central_lon = (lon[0] + lon[1]) / 2 % 360
-    if central_lon > 180:
-        central_lon -= 360
+
+    # Use explicit central_longitude if supplied; otherwise derive from lon range
+    if "central_longitude" in region:
+        central_lon = region["central_longitude"]
+    else:
+        lon = region["lon"]
+        central_lon = (lon[0] + lon[1]) / 2 % 360
+        if central_lon > 180:
+            central_lon -= 360
 
     if proj_type == "stereo_north":
         return ccrs.NorthPolarStereo(central_longitude=central_lon)
@@ -91,22 +128,23 @@ class WeatherMapPlotter:
         plot_type: str = "Mean",
         figsize: tuple[float, float] = (11, 6.5),
         wind_uv: tuple[xr.DataArray, xr.DataArray] | None = None,
+        # Display setting overrides
+        vmin: float | None = None,
+        vmax: float | None = None,
+        contour_interval: float | None = None,
+        cmap: str | None = None,
+        draw_labels: bool = True,
     ) -> plt.Figure:
-        """
-        Parameters
-        ----------
-        data : DataArray with dims (latitude/lat, longitude/lon)
-        var_key : key in VARIABLES dict
-        region : dict with keys 'lat', 'lon', optionally 'projection'
-        plot_type : one of 'Mean', 'Anomaly', 'Standardized Anomaly'
-        """
         var_info = VARIABLES[var_key]
         is_anomaly = "Anomaly" in plot_type
 
-        cmap = var_info["cmap_anom"] if is_anomaly else var_info["cmap_mean"]
-        vmin, vmax = (
-            var_info["clim_range"] if is_anomaly else var_info["typical_range"]
-        )
+        _cmap = cmap or (var_info["cmap_anom"] if is_anomaly else var_info["cmap_mean"])
+        _vmin, _vmax = var_info["clim_range"] if is_anomaly else var_info["typical_range"]
+        if vmin is not None:
+            _vmin = vmin
+        if vmax is not None:
+            _vmax = vmax
+        _ci = contour_interval or var_info["contour_interval"]
 
         proj = _make_projection(region)
         fig, ax = plt.subplots(figsize=figsize, subplot_kw={"projection": proj})
@@ -117,100 +155,103 @@ class WeatherMapPlotter:
         lat_name = "latitude" if "latitude" in data.coords else "lat"
         lon_name = "longitude" if "longitude" in data.coords else "lon"
 
-        lats = data.coords[lat_name].values
-        lons = data.coords[lon_name].values
-        vals = data.values
+        lats = data.coords[lat_name].values.copy()
+        lons = data.coords[lon_name].values.copy()
+        vals = data.values.copy()
 
         # Make lons run -180..180
         if lons.max() > 180:
             shift = lons > 180
             lons[shift] -= 360
-            # Re-sort along lon axis
             sort_idx = np.argsort(lons)
             lons = lons[sort_idx]
-            lat_ax = 0 if vals.shape[0] == len(lats) else 1
-            if lat_ax == 0:
+            if vals.shape == (len(lats), len(lons)):
                 vals = vals[:, sort_idx]
             else:
                 vals = vals[sort_idx, :]
 
-        # Subset to region
+        # Determine if this is a full-globe plot (skip set_extent)
         lat_min, lat_max = sorted(region["lat"])
         lon_min, lon_max = sorted(region["lon"])
-        lat_mask = (lats >= lat_min) & (lats <= lat_max)
-        lon_mask = (lons >= lon_min) & (lons <= lon_max)
+        full_globe = (lon_max - lon_min) >= 359 and (lat_max - lat_min) >= 179
 
-        lats_sub = lats[lat_mask]
-        lons_sub = lons[lon_mask]
-
-        if vals.shape == (len(lats), len(lons)):
-            vals_sub = vals[np.ix_(lat_mask, lon_mask)]
-        elif vals.shape == (len(lons), len(lats)):
-            vals_sub = vals[np.ix_(lon_mask, lat_mask)].T
+        # Subset to region (skip for full-globe: keep all data for cyclic fix)
+        if not full_globe:
+            lat_mask = (lats >= lat_min) & (lats <= lat_max)
+            lon_mask = (lons >= lon_min) & (lons <= lon_max)
+            lats_sub = lats[lat_mask]
+            lons_sub = lons[lon_mask]
+            if vals.shape == (len(lats), len(lons)):
+                vals_sub = vals[np.ix_(lat_mask, lon_mask)]
+            elif vals.shape == (len(lons), len(lats)):
+                vals_sub = vals[np.ix_(lon_mask, lat_mask)].T
+            else:
+                vals_sub = vals
         else:
-            vals_sub = vals
+            lats_sub = lats
+            lons_sub = lons
+            if vals.shape == (len(lons), len(lats)):
+                vals_sub = vals.T
+            else:
+                vals_sub = vals
+
+        # Add cyclic point to close the date-line gap
+        if _HAS_CYCLIC and full_globe:
+            try:
+                vals_sub, lons_sub = add_cyclic_point(vals_sub, coord=lons_sub)
+            except Exception:
+                pass
 
         # ------------------------------------------------------------------
         # Filled contour
         # ------------------------------------------------------------------
-        levels_fill = np.linspace(vmin, vmax, 21)
+        levels_fill = np.linspace(_vmin, _vmax, 21)
         cf = ax.contourf(
             lons_sub,
             lats_sub,
             vals_sub,
             levels=levels_fill,
-            cmap=cmap,
+            cmap=_cmap,
             extend="both",
             transform=ccrs.PlateCarree(),
         )
 
-        # Contour lines (absolute values only; skip for anomalies for clarity)
+        # Contour lines
         if not is_anomaly:
-            ci = var_info["contour_interval"]
             cl_levels = np.arange(
-                np.floor(vmin / ci) * ci,
-                np.ceil(vmax / ci) * ci + ci,
-                ci,
+                np.floor(_vmin / _ci) * _ci,
+                np.ceil(_vmax / _ci) * _ci + _ci,
+                _ci,
             )
             cl = ax.contour(
-                lons_sub,
-                lats_sub,
-                vals_sub,
+                lons_sub, lats_sub, vals_sub,
                 levels=cl_levels,
-                colors="k",
-                linewidths=0.6,
+                colors="k", linewidths=0.6,
                 transform=ccrs.PlateCarree(),
             )
             ax.clabel(cl, fmt="%g", fontsize=7, inline=True)
         else:
-            # Zero contour for anomaly maps
             ax.contour(
-                lons_sub,
-                lats_sub,
-                vals_sub,
+                lons_sub, lats_sub, vals_sub,
                 levels=[0],
-                colors="k",
-                linewidths=1.0,
-                linestyles="--",
+                colors="k", linewidths=1.0, linestyles="--",
                 transform=ccrs.PlateCarree(),
             )
 
         # ------------------------------------------------------------------
-        # Wind vectors (quiver) — only when wind_uv is supplied
+        # Wind vectors (quiver)
         # ------------------------------------------------------------------
         if wind_uv is not None:
             u_da, v_da = wind_uv
             u_lat = "latitude" if "latitude" in u_da.coords else "lat"
             u_lon = "longitude" if "longitude" in u_da.coords else "lon"
-            u_lats = u_da.coords[u_lat].values
-            u_lons = u_da.coords[u_lon].values
-            u_vals = u_da.values
-            v_vals = v_da.values
+            u_lats = u_da.coords[u_lat].values.copy()
+            u_lons = u_da.coords[u_lon].values.copy()
+            u_vals = u_da.values.copy()
+            v_vals = v_da.values.copy()
 
-            # Make lons -180..180
             if u_lons.max() > 180:
                 shift = u_lons > 180
-                u_lons = u_lons.copy()
                 u_lons[shift] -= 360
                 sort_idx = np.argsort(u_lons)
                 u_lons = u_lons[sort_idx]
@@ -218,7 +259,6 @@ class WeatherMapPlotter:
                     u_vals = u_vals[:, sort_idx]
                     v_vals = v_vals[:, sort_idx]
 
-            # Subset to region
             u_lat_mask = (u_lats >= lat_min) & (u_lats <= lat_max)
             u_lon_mask = (u_lons >= lon_min) & (u_lons <= lon_max)
             u_lats_s = u_lats[u_lat_mask]
@@ -229,19 +269,12 @@ class WeatherMapPlotter:
             else:
                 u_sub, v_sub = u_vals, v_vals
 
-            # Subsample to avoid clutter (every ~5° → stride ≈ 2 for 2.5° grid)
             stride = max(1, len(u_lats_s) // 20)
             ax.quiver(
-                u_lons_s[::stride],
-                u_lats_s[::stride],
-                u_sub[::stride, ::stride],
-                v_sub[::stride, ::stride],
+                u_lons_s[::stride], u_lats_s[::stride],
+                u_sub[::stride, ::stride], v_sub[::stride, ::stride],
                 transform=ccrs.PlateCarree(),
-                scale=200,
-                width=0.003,
-                color="k",
-                alpha=0.7,
-                zorder=6,
+                scale=200, width=0.003, color="k", alpha=0.7, zorder=6,
             )
 
         # ------------------------------------------------------------------
@@ -249,40 +282,29 @@ class WeatherMapPlotter:
         # ------------------------------------------------------------------
         ax.add_feature(cfeature.COASTLINE, linewidth=0.8, zorder=5)
         ax.add_feature(cfeature.BORDERS, linewidth=0.4, linestyle=":", zorder=5)
-        ax.add_feature(
-            cfeature.NaturalEarthFeature(
-                "physical", "land", "110m",
-                facecolor="none", edgecolor="none"
-            ),
-            zorder=4,
-        )
 
         gl = ax.gridlines(
             crs=ccrs.PlateCarree(),
-            draw_labels=True,
+            draw_labels=draw_labels,
             linewidth=0.4,
             alpha=0.6,
             linestyle="--",
         )
-        gl.top_labels = False
-        gl.right_labels = False
+        if draw_labels:
+            gl.top_labels = False
+            gl.right_labels = False
 
-        # Extent
-        try:
-            ax.set_extent(
-                [lon_min, lon_max, lat_min, lat_max],
-                crs=ccrs.PlateCarree(),
-            )
-        except Exception:
-            pass
+        # Extent (skip for full-globe Robinson projections)
+        if not full_globe:
+            try:
+                ax.set_extent([lon_min, lon_max, lat_min, lat_max], crs=ccrs.PlateCarree())
+            except Exception:
+                pass
 
-        # Colorbar
         fig.colorbar(
-            cf,
-            ax=ax,
+            cf, ax=ax,
             orientation="horizontal",
-            pad=0.04,
-            shrink=0.75,
+            pad=0.04, shrink=0.75,
             label=f"{var_info['label']}  [{var_info['units']}]",
         )
         ax.set_title(title, fontsize=11, pad=8)
@@ -290,7 +312,6 @@ class WeatherMapPlotter:
         return fig
 
     def fig_to_bytes(self, fig: plt.Figure, dpi: int = 150) -> bytes:
-        """Render figure to PNG bytes."""
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
         buf.seek(0)

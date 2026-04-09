@@ -5,296 +5,388 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Analog Year Weather Maps</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            navy: { 900: '#0f172a', 800: '#1e293b', 700: '#334155' },
-            sky: { 400: '#38bdf8' },
-            indigo: { 400: '#818cf8' },
-          }
-        }
-      }
-    }
-  </script>
   <style>
-    body { background: #0f172a; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
-    select, input[type=number], input[type=date] {
+    body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; }
+    select, input[type=number], input[type=date], input[type=text] {
       background: #1e293b; border: 1px solid #334155; color: #f1f5f9;
-      border-radius: 8px; padding: 0.45rem 0.75rem; width: 100%;
-      font-size: 0.875rem;
+      border-radius: 8px; padding: 0.4rem 0.7rem; width: 100%; font-size: 0.875rem;
     }
-    select:focus, input:focus { outline: 2px solid #38bdf8; outline-offset: 1px; }
-    .tab-btn { transition: all 0.2s; border-bottom: 2px solid transparent; }
-    .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
-    .tab-btn:not(.active) { color: #94a3b8; }
-    .tab-btn:not(.active):hover { color: #cbd5e1; }
+    select:focus, input:focus { outline: 2px solid #38bdf8; outline-offset: 1px; border-color: transparent; }
+    .tab-btn { transition: all 0.2s; border-bottom: 2px solid transparent; padding-bottom: 0.5rem; }
+    .tab-btn.active { color: #38bdf8 !important; border-bottom-color: #38bdf8; }
+    .tab-btn:not(.active) { color: #64748b; }
+    .tab-btn:not(.active):hover { color: #94a3b8; }
     .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+    .section-title { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; font-weight: 700; margin-bottom: 0.5rem; }
     .btn-primary {
       background: linear-gradient(135deg, #0ea5e9, #6366f1);
       color: #fff; font-weight: 700; border-radius: 8px;
-      padding: 0.6rem 2rem; transition: opacity 0.15s;
-      cursor: pointer; border: none;
+      padding: 0.55rem 1.8rem; cursor: pointer; border: none;
+      transition: opacity 0.15s; font-size: 0.9rem;
     }
     .btn-primary:hover { opacity: 0.85; }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-sm {
+      background: #1e293b; border: 1px solid #334155; color: #94a3b8;
+      border-radius: 6px; padding: 0.3rem 0.9rem; font-size: 0.78rem;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-sm:hover { background: #334155; color: #e2e8f0; }
     .spinner {
       border: 3px solid #334155; border-top-color: #38bdf8;
-      border-radius: 50%; width: 28px; height: 28px;
-      animation: spin 0.8s linear infinite;
+      border-radius: 50%; width: 22px; height: 22px;
+      animation: spin 0.8s linear infinite; flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .radio-group label {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.4rem 0; cursor: pointer; font-size: 0.875rem; color: #cbd5e1;
+    .radio-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.85rem; color: #cbd5e1; cursor: pointer; }
+    .radio-row input { accent-color: #38bdf8; flex-shrink: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { background: #0f172a; color: #64748b; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.55rem 0.9rem; text-align: left; }
+    td { padding: 0.55rem 0.9rem; border-top: 1px solid #1e293b; }
+    tr:hover td { background: rgba(255,255,255,0.03); }
+    details > summary { cursor: pointer; list-style: none; font-size: 0.8rem; color: #64748b; user-select: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    details[open] > summary { color: #94a3b8; }
+    .tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #1e3a5f; border: 1px solid #2563eb44; color: #93c5fd;
+      border-radius: 6px; padding: 2px 8px; font-size: 0.78rem;
     }
-    .radio-group input[type=radio] { accent-color: #38bdf8; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    th { background: #0f172a; color: #94a3b8; text-transform: uppercase;
-         font-size: 0.7rem; letter-spacing: 0.05em; padding: 0.6rem 1rem; text-align: left; }
-    td { padding: 0.6rem 1rem; border-top: 1px solid #334155; color: #e2e8f0; }
-    tr:hover td { background: #0f172a44; }
+    .tag button { background: none; border: none; color: #93c5fd; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0 0 0 2px; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
 
-<!-- ── Header ─────────────────────────────────────────────── -->
-<header class="border-b border-navy-800 px-6 py-4 flex items-center gap-3">
-  <span class="text-2xl">🌏</span>
-  <div>
-    <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
-      Analog Year Weather Maps
-    </h1>
-    <p class="text-xs text-slate-500 mt-0.5">ERA5 reanalysis · ~5-day lag · Copernicus CDS</p>
+<!-- Header -->
+<header class="border-b border-slate-800 px-5 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <span class="text-2xl">🌏</span>
+    <div>
+      <h1 class="text-lg font-extrabold tracking-tight" style="background:linear-gradient(90deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
+        Analog Year Weather Maps
+      </h1>
+      <p class="text-xs text-slate-600 mt-0.5">ERA5 reanalysis · ~5-day lag · Copernicus CDS</p>
+    </div>
+  </div>
+  <!-- Data status -->
+  <div id="status-bar" class="flex items-center gap-2 text-xs text-slate-500">
+    <span id="status-text">Checking data availability…</span>
+    <button class="btn-sm" onclick="fetchLatest()" id="btn-fetch-latest" title="Pre-fetch latest ERA5 data">🔄 Fetch latest</button>
   </div>
 </header>
 
-<!-- ── Body ───────────────────────────────────────────────── -->
+<!-- Body -->
 <div class="flex flex-1 overflow-hidden">
 
   <!-- Sidebar -->
-  <aside class="w-64 shrink-0 border-r border-navy-800 p-4 overflow-y-auto" style="background:#0c1628">
-    <p class="text-xs uppercase tracking-widest text-slate-500 mb-4 font-semibold">Settings</p>
+  <aside class="w-60 shrink-0 border-r border-slate-800 p-4 overflow-y-auto flex flex-col gap-4" style="background:#0c1628">
 
-    <div class="space-y-4">
-      <!-- Variable -->
-      <div>
-        <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wide">Variable</label>
-        <select id="sel-var"></select>
-      </div>
-      <!-- Region -->
-      <div>
-        <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wide">Region</label>
-        <select id="sel-region"></select>
-      </div>
-      <!-- Map type -->
-      <div>
-        <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wide">Map Type</label>
-        <div class="radio-group" id="radio-maptype">
-          <label><input type="radio" name="maptype" value="Mean" checked /> Mean</label>
-          <label><input type="radio" name="maptype" value="Anomaly (vs 1991–2020)" /> Anomaly</label>
-          <label><input type="radio" name="maptype" value="Standardized Anomaly" /> Standardized Anomaly</label>
-        </div>
-      </div>
-      <!-- Climatology -->
-      <div>
-        <label class="block text-xs text-slate-400 mb-1 uppercase tracking-wide">Climatology Period</label>
-        <select id="sel-clim">
-          <option>1951–1980</option>
-          <option>1961–1990</option>
-          <option>1971–2000</option>
-          <option>1981–2010</option>
-          <option selected>1991–2020</option>
-        </select>
+    <div>
+      <p class="section-title">Variable</p>
+      <select id="sel-var"></select>
+    </div>
+
+    <div>
+      <p class="section-title">Region</p>
+      <select id="sel-region"></select>
+    </div>
+
+    <div>
+      <p class="section-title">Map Type</p>
+      <div id="radio-maptype" class="space-y-0.5">
+        <label class="radio-row"><input type="radio" name="maptype" value="Mean" checked /> Mean</label>
+        <label class="radio-row"><input type="radio" name="maptype" value="Anomaly (vs 1991–2020)" /> Anomaly</label>
+        <label class="radio-row"><input type="radio" name="maptype" value="Standardized Anomaly" /> Standardized Anomaly</label>
       </div>
     </div>
 
-    <div class="mt-8 pt-4 border-t border-navy-700">
-      <p class="text-xs text-slate-600 leading-relaxed">
-        Data: <a href="https://cds.climate.copernicus.eu/" target="_blank" class="text-sky-500 hover:underline">ERA5 / Copernicus CDS</a>
+    <div>
+      <p class="section-title">Climatology Period</p>
+      <select id="sel-clim">
+        <option>1951–1980</option><option>1961–1990</option>
+        <option>1971–2000</option><option>1981–2010</option>
+        <option selected>1991–2020</option>
+      </select>
+    </div>
+
+    <!-- Display settings -->
+    <div>
+      <p class="section-title">Display Settings</p>
+      <div class="space-y-2">
+        <div class="grid grid-cols-2 gap-1.5">
+          <div>
+            <label class="block text-xs text-slate-500 mb-0.5">vmin</label>
+            <input type="number" id="disp-vmin" placeholder="auto" step="any" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-0.5">vmax</label>
+            <input type="number" id="disp-vmax" placeholder="auto" step="any" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-0.5">Contour interval</label>
+          <input type="number" id="disp-ci" placeholder="auto" step="any" min="0" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-0.5">Colormap</label>
+          <select id="disp-cmap"></select>
+        </div>
+        <label class="radio-row">
+          <input type="checkbox" id="disp-labels" checked style="accent-color:#38bdf8" />
+          Show lat/lon labels
+        </label>
+      </div>
+    </div>
+
+    <div class="mt-auto pt-3 border-t border-slate-800">
+      <p class="text-xs text-slate-700 leading-relaxed">
+        Data: <a href="https://cds.climate.copernicus.eu/" target="_blank" class="text-sky-700 hover:text-sky-500">ERA5 / Copernicus CDS</a>
       </p>
     </div>
   </aside>
 
   <!-- Main -->
-  <main class="flex-1 overflow-y-auto p-6">
-
+  <main class="flex-1 overflow-y-auto p-5">
     <!-- Tabs -->
-    <div class="flex gap-6 border-b border-navy-700 mb-6">
-      <button class="tab-btn active pb-2 font-semibold text-sm" onclick="switchTab('composite', this)">📊 Composite Map</button>
-      <button class="tab-btn pb-2 font-semibold text-sm" onclick="switchTab('analog', this)">🔍 Analog Year Finder</button>
+    <div class="flex gap-5 border-b border-slate-800 mb-5">
+      <button class="tab-btn active font-semibold text-sm" onclick="switchTab('composite',this)">📊 Composite Map</button>
+      <button class="tab-btn font-semibold text-sm" onclick="switchTab('analog',this)">🔍 Analog Year Finder</button>
     </div>
 
-    <!-- ══ TAB: Composite ══ -->
+    <!-- ══ Composite ══ -->
     <div id="tab-composite">
-      <p class="text-sm text-slate-400 mb-4">
-        Choose a date range. Recent periods (&lt;60 days) use ERA5T daily data; longer periods use monthly means.
-      </p>
-      <div class="grid grid-cols-2 gap-4 mb-4 max-w-lg">
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">Start date</label>
-          <input type="date" id="c-start" />
-        </div>
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">End date</label>
-          <input type="date" id="c-end" />
-        </div>
+      <!-- Mode toggle -->
+      <div class="flex gap-2 mb-4">
+        <button class="btn-sm" id="mode-single-btn" onclick="setMode('single')" style="background:#1e3a5f;border-color:#2563eb44;color:#93c5fd">Single Period</button>
+        <button class="btn-sm" id="mode-multi-btn" onclick="setMode('multi')">Multi-Year</button>
       </div>
-      <button class="btn-primary" id="btn-composite" onclick="drawComposite()">Draw Map</button>
 
-      <div id="composite-status" class="mt-4 hidden">
-        <div class="flex items-center gap-3 text-slate-400 text-sm">
-          <div class="spinner"></div>
-          <span>Fetching ERA5 data…</span>
+      <!-- Single period -->
+      <div id="mode-single">
+        <p class="text-sm text-slate-400 mb-3">Choose a date range. Recent data (&lt;60 days) uses ERA5T daily; longer periods use monthly means.</p>
+        <div class="grid grid-cols-2 gap-3 max-w-sm mb-4">
+          <div><label class="block text-xs text-slate-500 mb-1">Start date</label><input type="date" id="c-start" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1">End date</label><input type="date" id="c-end" /></div>
         </div>
       </div>
-      <div id="composite-error" class="mt-4 hidden card p-4 border-red-800 bg-red-950/30 text-red-300 text-sm"></div>
-      <div id="composite-result" class="mt-6"></div>
+
+      <!-- Multi-year -->
+      <div id="mode-multi" class="hidden">
+        <p class="text-sm text-slate-400 mb-3">Select multiple years and months to average together.</p>
+        <div class="grid grid-cols-2 gap-4 max-w-lg mb-3">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Add year</label>
+            <div class="flex gap-1.5">
+              <input type="number" id="multi-year-input" placeholder="e.g. 2020" min="1950" max="2025" style="flex:1" />
+              <button class="btn-sm" onclick="addYear()">Add</button>
+            </div>
+            <div id="year-tags" class="flex flex-wrap gap-1 mt-2 min-h-[28px]"></div>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">Months</label>
+            <div id="month-checkboxes" class="grid grid-cols-4 gap-x-2 gap-y-0.5">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="btn-composite" onclick="drawComposite()">Draw Map</button>
+      <div id="composite-status" class="mt-4 hidden flex items-center gap-3 text-slate-400 text-sm">
+        <div class="spinner"></div><span>Fetching ERA5 data…</span>
+      </div>
+      <div id="composite-error" class="mt-3 hidden card p-4 text-red-300 text-sm" style="border-color:#7f1d1d;background:#450a0a22"></div>
+      <div id="composite-result" class="mt-5"></div>
     </div>
 
-    <!-- ══ TAB: Analog ══ -->
+    <!-- ══ Analog ══ -->
     <div id="tab-analog" class="hidden">
-      <p class="text-sm text-slate-400 mb-4">
-        Select a target period. The tool finds historical years with the most similar large-scale pattern.
-      </p>
-      <div class="grid grid-cols-2 gap-4 mb-4 max-w-lg">
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">Target start</label>
-          <input type="date" id="a-start" />
-        </div>
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">Target end</label>
-          <input type="date" id="a-end" />
-        </div>
+      <p class="text-sm text-slate-400 mb-4">Select a target period — the tool finds historical years with the most similar large-scale pattern.</p>
+      <div class="grid grid-cols-2 gap-3 max-w-sm mb-3">
+        <div><label class="block text-xs text-slate-500 mb-1">Target start</label><input type="date" id="a-start" /></div>
+        <div><label class="block text-xs text-slate-500 mb-1">Target end</label><input type="date" id="a-end" /></div>
       </div>
-      <div class="grid grid-cols-2 gap-4 mb-4 max-w-lg">
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">Number of analogs</label>
-          <input type="number" id="n-analogs" value="5" min="3" max="10" />
-        </div>
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">Search from year</label>
-          <input type="number" id="search-from" value="1950" min="1950" max="2020" />
-        </div>
+      <div class="grid grid-cols-2 gap-3 max-w-sm mb-3">
+        <div><label class="block text-xs text-slate-500 mb-1">Number of analogs</label><input type="number" id="n-analogs" value="5" min="3" max="10" /></div>
+        <div><label class="block text-xs text-slate-500 mb-1">Search from year</label><input type="number" id="search-from" value="1950" min="1950" max="2020" /></div>
       </div>
-      <label class="flex items-center gap-2 text-sm text-slate-300 mb-4 cursor-pointer">
-        <input type="checkbox" id="use-anomaly" checked class="accent-sky-400" />
+      <label class="radio-row mb-4">
+        <input type="checkbox" id="use-anomaly" checked style="accent-color:#38bdf8" />
         Compare anomaly fields (recommended)
       </label>
       <button class="btn-primary" id="btn-analog" onclick="findAnalogs()">Find Analog Years</button>
-
-      <div id="analog-status" class="mt-4 hidden">
-        <div class="flex items-center gap-3 text-slate-400 text-sm">
-          <div class="spinner"></div>
-          <span id="analog-status-text">Searching…</span>
-        </div>
+      <div id="analog-status" class="mt-4 hidden flex items-center gap-3 text-slate-400 text-sm">
+        <div class="spinner"></div><span id="analog-status-text">Searching…</span>
       </div>
-      <div id="analog-error" class="mt-4 hidden card p-4 border-red-800 bg-red-950/30 text-red-300 text-sm"></div>
-
-      <!-- Results table -->
-      <div id="analog-table" class="mt-6 hidden card overflow-hidden">
-        <table id="analog-tbl">
-          <thead><tr>
-            <th>Year</th><th>Correlation (r)</th><th>RMSE</th><th>Period</th>
-          </tr></thead>
-          <tbody id="analog-tbody"></tbody>
-        </table>
+      <div id="analog-error" class="mt-3 hidden card p-4 text-red-300 text-sm" style="border-color:#7f1d1d;background:#450a0a22"></div>
+      <div id="analog-table" class="mt-5 hidden card overflow-hidden">
+        <table><thead><tr>
+          <th>Year</th><th>Correlation (r)</th><th>RMSE</th><th>Period</th>
+        </tr></thead><tbody id="analog-tbody"></tbody></table>
       </div>
-
-      <!-- Maps -->
-      <div id="analog-maps" class="mt-6 space-y-6"></div>
+      <div id="analog-maps" class="mt-5 space-y-5"></div>
     </div>
-
   </main>
 </div>
 
 <script>
 // ── State ─────────────────────────────────────────────────────────
-const S = { vars: {}, regions: [] };
+const S = { vars: {}, regions: [], cmaps: [], mode: 'single', multiYears: new Set() };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── Init ──────────────────────────────────────────────────────────
 async function init() {
-  [S.vars, S.regions] = await Promise.all([
-    fetch('/api/variables').then(r => r.json()),
-    fetch('/api/regions').then(r => r.json()),
+  const [vars, regions, cmaps] = await Promise.all([
+    fetch('/api/variables').then(r=>r.json()),
+    fetch('/api/regions').then(r=>r.json()),
+    fetch('/api/colormaps').then(r=>r.json()),
   ]);
+  S.vars = vars; S.regions = regions; S.cmaps = cmaps;
 
   const selVar = document.getElementById('sel-var');
-  Object.entries(S.vars).forEach(([k, v]) => {
-    const o = new Option(`${v.label}`, k);
-    selVar.appendChild(o);
+  Object.entries(vars).forEach(([k,v]) => selVar.appendChild(new Option(v.label, k)));
+
+  const selReg = document.getElementById('sel-region');
+  regions.forEach(r => selReg.appendChild(new Option(r, r)));
+
+  const selCmap = document.getElementById('disp-cmap');
+  selCmap.appendChild(new Option('— default —', ''));
+  cmaps.forEach(c => selCmap.appendChild(new Option(c, c)));
+
+  // Month checkboxes
+  const mc = document.getElementById('month-checkboxes');
+  MONTHS.forEach((m, i) => {
+    const lbl = document.createElement('label');
+    lbl.className = 'radio-row text-xs';
+    lbl.innerHTML = `<input type="checkbox" class="month-cb" value="${i+1}" style="accent-color:#38bdf8"/> ${m}`;
+    mc.appendChild(lbl);
   });
 
-  const selRegion = document.getElementById('sel-region');
-  S.regions.forEach(r => selRegion.appendChild(new Option(r, r)));
-
   // Default dates
-  const today = new Date();
   const fmt = d => d.toISOString().split('T')[0];
-  const d30 = new Date(today); d30.setDate(d30.getDate() - 30);
-  const d1  = new Date(today); d1.setDate(d1.getDate() - 1);
+  const today = new Date();
+  const d30 = new Date(today); d30.setDate(d30.getDate()-30);
+  const d1  = new Date(today); d1.setDate(d1.getDate()-1);
   ['c-start','a-start'].forEach(id => document.getElementById(id).value = fmt(d30));
-  ['c-end',  'a-end'  ].forEach(id => document.getElementById(id).value = fmt(d1));
+  ['c-end','a-end'].forEach(id   => document.getElementById(id).value = fmt(d1));
+
+  // Data status
+  fetch('/api/status').then(r=>r.json()).then(d => {
+    document.getElementById('status-text').textContent = `ERA5 available through ~${d.latest_available}`;
+  }).catch(()=>{});
 }
 
 // ── Tab switch ────────────────────────────────────────────────────
 function switchTab(name, btn) {
-  ['composite','analog'].forEach(t => {
-    document.getElementById(`tab-${t}`).classList.toggle('hidden', t !== name);
-  });
+  ['composite','analog'].forEach(t =>
+    document.getElementById('tab-'+t).classList.toggle('hidden', t !== name));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+}
+
+// ── Composite mode toggle ─────────────────────────────────────────
+function setMode(m) {
+  S.mode = m;
+  document.getElementById('mode-single').classList.toggle('hidden', m !== 'single');
+  document.getElementById('mode-multi').classList.toggle('hidden', m !== 'multi');
+  const active = 'background:#1e3a5f;border-color:#2563eb44;color:#93c5fd';
+  const inactive = '';
+  document.getElementById('mode-single-btn').style.cssText = m==='single' ? active : inactive;
+  document.getElementById('mode-multi-btn').style.cssText  = m==='multi'  ? active : inactive;
+}
+
+// ── Multi-year tags ───────────────────────────────────────────────
+function addYear() {
+  const inp = document.getElementById('multi-year-input');
+  const y = parseInt(inp.value);
+  if (!y || y < 1950 || y > 2025) return;
+  S.multiYears.add(y);
+  inp.value = '';
+  renderYearTags();
+}
+function removeYear(y) { S.multiYears.delete(y); renderYearTags(); }
+function renderYearTags() {
+  const container = document.getElementById('year-tags');
+  container.innerHTML = '';
+  [...S.multiYears].sort().forEach(y => {
+    const span = document.createElement('span');
+    span.className = 'tag';
+    span.innerHTML = `${y}<button onclick="removeYear(${y})">×</button>`;
+    container.appendChild(span);
+  });
 }
 
 // ── Shared settings ───────────────────────────────────────────────
 function getSettings() {
   const clim = document.getElementById('sel-clim').value;
+  const vmin = document.getElementById('disp-vmin').value;
+  const vmax = document.getElementById('disp-vmax').value;
+  const ci   = document.getElementById('disp-ci').value;
   return {
-    var_key: document.getElementById('sel-var').value,
+    var_key:     document.getElementById('sel-var').value,
     region_name: document.getElementById('sel-region').value,
-    plot_type: document.querySelector('input[name=maptype]:checked').value,
-    clim_start: parseInt(clim.slice(0,4)),
-    clim_end:   parseInt(clim.slice(5)),
+    plot_type:   document.querySelector('input[name=maptype]:checked').value,
+    clim_start:  parseInt(clim.slice(0,4)),
+    clim_end:    parseInt(clim.slice(5)),
+    disp_vmin:   vmin !== '' ? parseFloat(vmin) : null,
+    disp_vmax:   vmax !== '' ? parseFloat(vmax) : null,
+    disp_ci:     ci   !== '' ? parseFloat(ci)   : null,
+    disp_cmap:   document.getElementById('disp-cmap').value || null,
+    disp_labels: document.getElementById('disp-labels').checked,
   };
 }
 
-// ── Composite map ─────────────────────────────────────────────────
+// ── Composite ────────────────────────────────────────────────────
 async function drawComposite() {
-  const btn   = document.getElementById('btn-composite');
-  const stat  = document.getElementById('composite-status');
-  const err   = document.getElementById('composite-error');
-  const res   = document.getElementById('composite-result');
-
+  const btn  = document.getElementById('btn-composite');
+  const stat = document.getElementById('composite-status');
+  const err  = document.getElementById('composite-error');
+  const res  = document.getElementById('composite-result');
   err.classList.add('hidden'); res.innerHTML = '';
   stat.classList.remove('hidden'); btn.disabled = true;
 
   try {
-    const body = {
-      ...getSettings(),
-      start_date: document.getElementById('c-start').value,
-      end_date:   document.getElementById('c-end').value,
-    };
+    const body = { ...getSettings() };
+
+    if (S.mode === 'multi') {
+      const months = [...document.querySelectorAll('.month-cb:checked')].map(c=>parseInt(c.value));
+      if (S.multiYears.size === 0) throw new Error('Please add at least one year.');
+      if (months.length === 0) throw new Error('Please select at least one month.');
+      body.multi_years  = [...S.multiYears].sort();
+      body.multi_months = months;
+    } else {
+      body.start_date = document.getElementById('c-start').value;
+      body.end_date   = document.getElementById('c-end').value;
+      if (body.start_date >= body.end_date) throw new Error('Start date must be before end date.');
+    }
+
     const resp = await fetch('/api/composite', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(body),
     });
-    if (!resp.ok) {
-      const d = await resp.json();
-      throw new Error(d.detail || resp.statusText);
-    }
+    if (!resp.ok) { const d = await resp.json(); throw new Error(d.detail || resp.statusText); }
     const data = await resp.json();
-    res.innerHTML = `<img src="${data.image}" class="rounded-xl w-full shadow-lg" />`;
+    res.innerHTML = `<img src="${data.image}" class="rounded-xl w-full shadow-xl" />`;
   } catch(e) {
-    err.textContent = '⚠ ' + e.message;
-    err.classList.remove('hidden');
-  } finally {
-    stat.classList.add('hidden'); btn.disabled = false;
-  }
+    err.textContent = '⚠ ' + e.message; err.classList.remove('hidden');
+  } finally { stat.classList.add('hidden'); btn.disabled = false; }
 }
 
-// ── Analog finder (SSE) ───────────────────────────────────────────
+// ── Fetch latest ─────────────────────────────────────────────────
+async function fetchLatest() {
+  const btn = document.getElementById('btn-fetch-latest');
+  btn.disabled = true; btn.textContent = '⏳ Fetching…';
+  try {
+    const r = await fetch('/api/fetch_latest', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('status-text').textContent =
+        `ERA5 available through ~${d.fetched_through} ✓`;
+    }
+  } catch(e) { /* silent */ }
+  finally { btn.disabled = false; btn.textContent = '🔄 Fetch latest'; }
+}
+
+// ── Analog finder ────────────────────────────────────────────────
 async function findAnalogs() {
   const btn      = document.getElementById('btn-analog');
   const stat     = document.getElementById('analog-status');
@@ -303,34 +395,29 @@ async function findAnalogs() {
   const tbl      = document.getElementById('analog-table');
   const tbody    = document.getElementById('analog-tbody');
   const maps     = document.getElementById('analog-maps');
-
   err.classList.add('hidden');
   tbl.classList.add('hidden');
-  tbody.innerHTML = '';
-  maps.innerHTML = '';
-  stat.classList.remove('hidden');
-  btn.disabled = true;
+  tbody.innerHTML = ''; maps.innerHTML = '';
+  stat.classList.remove('hidden'); btn.disabled = true;
 
   try {
+    const aStart = document.getElementById('a-start').value;
+    const aEnd   = document.getElementById('a-end').value;
+    if (aStart >= aEnd) throw new Error('Start date must be before end date.');
+
     const body = {
       ...getSettings(),
-      start_date:        document.getElementById('a-start').value,
-      end_date:          document.getElementById('a-end').value,
+      start_date: aStart, end_date: aEnd,
       n_analogs:         parseInt(document.getElementById('n-analogs').value),
       search_start_year: parseInt(document.getElementById('search-from').value),
       use_anomaly:       document.getElementById('use-anomaly').checked,
     };
 
     const resp = await fetch('/api/analog', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(body),
     });
-
-    if (!resp.ok) {
-      const d = await resp.json();
-      throw new Error(d.detail || resp.statusText);
-    }
+    if (!resp.ok) { const d = await resp.json(); throw new Error(d.detail || resp.statusText); }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
@@ -341,63 +428,54 @@ async function findAnalogs() {
       if (done) break;
       buf += decoder.decode(value, { stream: true });
       const lines = buf.split('\n\n');
-      buf = lines.pop(); // keep incomplete chunk
+      buf = lines.pop();
       for (const line of lines) {
         if (!line.startsWith('data: ')) continue;
         const msg = JSON.parse(line.slice(6));
-
         if (msg.error) throw new Error(msg.error);
-
         if (msg.status) statText.textContent = msg.status;
-
         if (msg.analogs) {
-          // Populate table
           tbody.innerHTML = '';
           msg.analogs.forEach(a => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-              <td class="font-bold text-sky-400">${a.year}</td>
+              <td class="font-bold" style="color:#38bdf8">${a.year}</td>
               <td>${a.correlation.toFixed(3)}</td>
-              <td>${a.rmse.toFixed(2)}</td>
-              <td class="text-slate-400 text-xs">${a.start_date} – ${a.end_date}</td>
-            `;
+              <td class="text-slate-400">${a.rmse.toFixed(2)}</td>
+              <td class="text-slate-500 text-xs">${a.start_date} – ${a.end_date}</td>`;
             tbody.appendChild(tr);
           });
           tbl.classList.remove('hidden');
         }
-
         if (msg.target_image) {
           const div = document.createElement('div');
-          div.innerHTML = `
-            <p class="text-sm font-semibold text-white mb-2">Target Period</p>
-            <img src="${msg.target_image}" class="rounded-xl w-full shadow-lg" />
-          `;
+          div.innerHTML = `<p class="text-sm font-semibold text-white mb-2">Target Period</p>
+            <img src="${msg.target_image}" class="rounded-xl w-full shadow-xl" />`;
           maps.prepend(div);
         }
-
         if (msg.analog_image) {
-          const { year, r, image } = msg.analog_image;
+          const {year, r, image} = msg.analog_image;
           const div = document.createElement('div');
-          div.innerHTML = `
-            <p class="text-sm font-semibold text-white mb-2">
-              Analog: <span class="text-sky-400">${year}</span>
-              <span class="text-slate-400 font-normal ml-2">r = ${r.toFixed(3)}</span>
-            </p>
-            <img src="${image}" class="rounded-xl w-full shadow-lg" />
-          `;
+          div.innerHTML = `<p class="text-sm font-semibold text-white mb-2">
+            Analog: <span style="color:#38bdf8">${year}</span>
+            <span class="text-slate-500 font-normal ml-2">r = ${r.toFixed(3)}</span></p>
+            <img src="${image}" class="rounded-xl w-full shadow-xl" />`;
           maps.appendChild(div);
         }
-
         if (msg.done) break;
       }
     }
   } catch(e) {
-    err.textContent = '⚠ ' + e.message;
-    err.classList.remove('hidden');
-  } finally {
-    stat.classList.add('hidden'); btn.disabled = false;
-  }
+    err.textContent = '⚠ ' + e.message; err.classList.remove('hidden');
+  } finally { stat.classList.add('hidden'); btn.disabled = false; }
 }
+
+// Enter key on multi-year input
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('multi-year-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') addYear();
+  });
+});
 
 init();
 </script>
