@@ -227,40 +227,6 @@ VARIABLES: dict[str, dict] = {
         "clim_range": (-30, 30),
         "typical_range": (150, 320),
     },
-    "sf200": {
-        "label": "200 hPa Streamfunction",
-        "era5_name": "stream_function",
-        "era5_short": "strf",
-        "level": 200,
-        "dataset_daily": "reanalysis-era5-pressure-levels",
-        "dataset_monthly": "reanalysis-era5-pressure-levels-monthly-means",
-        "product_type_monthly": "monthly_averaged_reanalysis",
-        "scale": 1e-6,   # m²/s → ×10⁶ m²/s
-        "offset": 0.0,
-        "units": "×10⁶ m²/s",
-        "cmap_mean": "RdBu_r",
-        "cmap_anom": "RdBu_r",
-        "contour_interval": 5,
-        "clim_range": (-20, 20),
-        "typical_range": (-100, 100),
-    },
-    "sf850": {
-        "label": "850 hPa Streamfunction",
-        "era5_name": "stream_function",
-        "era5_short": "strf",
-        "level": 850,
-        "dataset_daily": "reanalysis-era5-pressure-levels",
-        "dataset_monthly": "reanalysis-era5-pressure-levels-monthly-means",
-        "product_type_monthly": "monthly_averaged_reanalysis",
-        "scale": 1e-6,
-        "offset": 0.0,
-        "units": "×10⁶ m²/s",
-        "cmap_mean": "RdBu_r",
-        "cmap_anom": "RdBu_r",
-        "contour_interval": 2,
-        "clim_range": (-10, 10),
-        "typical_range": (-40, 40),
-    },
 }
 
 # Short name lookup built automatically
@@ -326,7 +292,7 @@ class ERA5Fetcher:
                 "year": [str(y) for y in sorted(set(years))],
                 "month": [f"{m:02d}" for m in sorted(set(months))],
                 "time": "00:00",
-                "format": "netcdf",
+                "data_format": "netcdf",
                 "grid": "2.5/2.5",
             }
             self.client.retrieve(
@@ -352,7 +318,7 @@ class ERA5Fetcher:
                 "month": [f"{m:02d}" for m in months],
                 "day": [f"{d:02d}" for d in days],
                 "time": ["00:00", "06:00", "12:00", "18:00"],
-                "format": "netcdf",
+                "data_format": "netcdf",
                 "grid": "2.5/2.5",
             }
             self.client.retrieve(
@@ -401,7 +367,7 @@ class ERA5Fetcher:
                 "year": [str(y) for y in sorted(set(years))],
                 "month": [f"{m:02d}" for m in sorted(set(months))],
                 "time": "00:00",
-                "format": "netcdf",
+                "data_format": "netcdf",
                 "grid": "2.5/2.5",
             }
             if var_info["level"] is not None:
@@ -445,7 +411,7 @@ class ERA5Fetcher:
                 "month": [f"{m:02d}" for m in months],
                 "day": [f"{d:02d}" for d in days],
                 "time": ["00:00", "06:00", "12:00", "18:00"],
-                "format": "netcdf",
+                "data_format": "netcdf",
                 "grid": "2.5/2.5",
             }
             if var_info["level"] is not None:
