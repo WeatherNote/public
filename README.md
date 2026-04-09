@@ -1,3 +1,12 @@
+---
+title: Analog Year Weather Maps
+emoji: 🌏
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # Analog Year Weather Maps
 
 ERA5 reanalysis-based tool to find historical years with similar atmospheric patterns ("analog years") and generate composite weather maps.
