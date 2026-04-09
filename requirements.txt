@@ -1,4 +1,5 @@
-streamlit>=1.32
+fastapi>=0.111
+uvicorn>=0.29
 cdsapi>=0.7
 xarray>=2024.1
 netcdf4>=1.6

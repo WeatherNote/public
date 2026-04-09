@@ -1,102 +1,71 @@
 # Analog Year Weather Maps
 
-ERA5-based weather composite and analog-year map tool.
-Inspired by [NOAA PSL Composites](https://psl.noaa.gov/cgi-bin/data/composites/printpage.pl), but using [ERA5 reanalysis](https://cds.climate.copernicus.eu/) data that is updated within **~5 days** of real-time (vs. ~2 weeks for NOAA PSL).
-
-![screenshot placeholder](docs/screenshot.png)
-
----
+ERA5 reanalysis-based tool to find historical years with similar atmospheric patterns ("analog years") and generate composite weather maps.
 
 ## Features
 
-| Feature | Details |
-|---------|---------|
-| **Variables** | Z500, SLP, T2m, T850, T500, U200, U500, Total Precipitation, ω500 |
-| **Map types** | Mean / Anomaly / Standardized Anomaly |
-| **Regions** | Northern Hemisphere, Global, N. Pacific, N. Atlantic, Asia/Japan, Tropics, … |
-| **Composite Map** | Plot the mean field for any date range |
-| **Analog Year Finder** | Find the N historical years whose large-scale pattern best matches the target period (area-weighted pattern correlation) |
-| **Climatology** | Selectable: 1951–80, 1961–90, 1971–2000, 1981–2010, 1991–2020 |
-| **Caching** | Downloaded ERA5 files are cached locally so repeat requests are instant |
-
----
+- **Composite maps** for any date range using ERA5 / ERA5T data (~5-day lag)
+- **Analog year finder** — ranks past years by area-weighted pattern correlation
+- Variables: Z500, SLP, T2m, T850, T500, U200, U500, precipitation, ω500, SST, 10 m wind speed, OLR
+- Regions: Northern Hemisphere, Global, North Pacific, North Atlantic, Asia/Japan, and more
+- Anomaly and standardized anomaly maps (selectable climatology period)
+- Wind vector overlay for 10 m wind speed maps
 
 ## Quick Start
 
-### 1. Set up CDS API credentials
-
-Register at <https://cds.climate.copernicus.eu/> and copy your API key:
+### 1. Clone
 
 ```bash
-cp .cdsapirc.example ~/.cdsapirc
-# Edit ~/.cdsapirc and paste your API key
+git clone https://github.com/WeatherNote/public.git
+cd public
 ```
 
 ### 2. Install dependencies
 
+Requires Python 3.10+. Using a virtual environment is recommended.
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> **Note:** Cartopy requires system libraries.
-> macOS: `brew install proj geos`
-> Ubuntu/Debian: `sudo apt install libproj-dev libgeos-dev`
+> **Note (macOS/Linux):** If `cartopy` fails to install via pip, use conda:
+> ```bash
+> conda install -c conda-forge cartopy
+> pip install -r requirements.txt
+> ```
 
-### 3. Run the app
+### 3. Set up CDS API credentials
 
-```bash
-streamlit run app.py
+Register at [https://cds.climate.copernicus.eu/](https://cds.climate.copernicus.eu/) and obtain your API key.
+
+Create `~/.cdsapirc`:
+
+```
+url: https://cds.climate.copernicus.eu/api
+key: <your-api-key>
 ```
 
-Open <http://localhost:8501> in your browser.
+Or copy the example file:
 
----
+```bash
+cp .cdsapirc.example ~/.cdsapirc
+# then edit ~/.cdsapirc and fill in your key
+```
 
-## How it Works
+### 4. Run
 
-### Composite Map tab
+```bash
+python main.py
+```
 
-1. Select a variable, region, and date range.
-2. The app fetches ERA5 data:
-   - **Recent periods (< 60 days ago) or short periods**: uses 6-hourly ERA5T daily data.
-   - **Older / longer periods**: uses ERA5 monthly means (faster).
-3. The mean field is plotted. If an anomaly type is selected, the climatological mean is subtracted.
+Open **http://localhost:8000** in your browser.
 
-### Analog Year Finder tab
+## Notes
 
-1. Select a target period (e.g., the past 30 days).
-2. The app downloads **all ERA5 monthly means from 1950 to present in a single batch request** and computes the area-weighted pattern correlation between the target period and the same calendar months in every historical year.
-3. The top-N analog years are ranked by correlation and displayed with their composite maps.
-
----
+- ERA5 data is cached in `./cache/` after the first download.
+- First-time downloads can take several minutes depending on the date range and variable.
+- Data availability: ERA5 covers 1940–present with ~5-day lag for the most recent period (ERA5T).
 
 ## Data Source
 
-- **ERA5** and **ERA5T (preliminary back extension)**: European Centre for Medium-Range Weather Forecasts (ECMWF) via the [Copernicus Climate Data Store](https://cds.climate.copernicus.eu/).
-- ERA5 monthly means: latency ~2 months.
-- ERA5T daily data: latency ~5 days.
-
----
-
-## Project Structure
-
-```
-analog-year-weather-maps/
-├── app.py                  # Streamlit application entry point
-├── src/
-│   ├── era5_fetcher.py     # CDS API data download & caching
-│   ├── plotter.py          # Cartopy map generation
-│   └── analog_finder.py    # Pattern-correlation analog search
-├── cache/                  # Auto-created; stores downloaded .nc files
-├── requirements.txt
-├── .cdsapirc.example
-└── .gitignore
-```
-
----
-
-## License
-
-MIT
+[ERA5 global reanalysis](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels) — Copernicus Climate Change Service (C3S)
