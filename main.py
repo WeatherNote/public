@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 from datetime import date, timedelta
+from typing import List, Optional
 
 import matplotlib
 matplotlib.use("Agg")
@@ -128,10 +129,10 @@ def fetch_latest():
 # ---------------------------------------------------------------------------
 
 class DisplaySettings(BaseModel):
-    disp_vmin: float | None = None
-    disp_vmax: float | None = None
-    disp_ci: float | None = None
-    disp_cmap: str | None = None
+    disp_vmin: Optional[float] = None
+    disp_vmax: Optional[float] = None
+    disp_ci: Optional[float] = None
+    disp_cmap: Optional[str] = None
     disp_labels: bool = True
 
 
@@ -146,11 +147,11 @@ class CompositeRequest(DisplaySettings):
     clim_start: int = 1991
     clim_end: int = 2020
     # Single-period mode
-    start_date: str | None = None
-    end_date: str | None = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     # Multi-year mode
-    multi_years: list[int] | None = None
-    multi_months: list[int] | None = None  # 1-12
+    multi_years: Optional[List[int]] = None
+    multi_months: Optional[List[int]] = None  # 1-12
 
 
 @app.post("/api/composite")

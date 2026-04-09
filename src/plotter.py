@@ -5,6 +5,7 @@ Map plotting using Matplotlib + Cartopy.
 from __future__ import annotations
 
 import io
+from typing import Optional, Tuple
 
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend
@@ -127,12 +128,12 @@ class WeatherMapPlotter:
         title: str = "",
         plot_type: str = "Mean",
         figsize: tuple[float, float] = (11, 6.5),
-        wind_uv: tuple[xr.DataArray, xr.DataArray] | None = None,
+        wind_uv: Optional[Tuple[xr.DataArray, xr.DataArray]] = None,
         # Display setting overrides
-        vmin: float | None = None,
-        vmax: float | None = None,
-        contour_interval: float | None = None,
-        cmap: str | None = None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        contour_interval: Optional[float] = None,
+        cmap: Optional[str] = None,
         draw_labels: bool = True,
     ) -> plt.Figure:
         var_info = VARIABLES[var_key]

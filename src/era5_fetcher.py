@@ -9,6 +9,7 @@ import hashlib
 import json
 from datetime import date
 from pathlib import Path
+from typing import Optional, Tuple
 
 import cdsapi
 import numpy as np
@@ -238,7 +239,7 @@ class ERA5Fetcher:
     def __init__(self, cache_dir: str = "cache"):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self._client: cdsapi.Client | None = None
+        self._client: Optional[cdsapi.Client] = None
 
     # ------------------------------------------------------------------
     # CDS client (lazy init)
@@ -333,7 +334,7 @@ class ERA5Fetcher:
 
     def extract_wind_components(
         self, ds: xr.Dataset
-    ) -> tuple[xr.DataArray, xr.DataArray]:
+    ) -> Tuple[xr.DataArray, xr.DataArray]:
         """Return (u10, v10) DataArrays from a ws10 dataset."""
         u = ds.get("u10", ds.get("10m_u_component_of_wind"))
         v = ds.get("v10", ds.get("10m_v_component_of_wind"))
@@ -469,7 +470,7 @@ class ERA5Fetcher:
 
         # ERA5 files may use either the short name or the long name
         candidates = [era5_short, era5_long] + list(ds.data_vars)
-        da: xr.DataArray | None = None
+        da: Optional[xr.DataArray] = None
         for name in candidates:
             if name in ds:
                 da = ds[name]
