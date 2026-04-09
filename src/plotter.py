@@ -135,6 +135,8 @@ class WeatherMapPlotter:
         contour_interval: Optional[float] = None,
         cmap: Optional[str] = None,
         draw_labels: bool = True,
+        # Mean overlay on anomaly maps
+        mean_overlay: Optional[xr.DataArray] = None,
     ) -> plt.Figure:
         var_info = VARIABLES[var_key]
         is_anomaly = "Anomaly" in plot_type
@@ -238,6 +240,47 @@ class WeatherMapPlotter:
                 colors="k", linewidths=1.0, linestyles="--",
                 transform=ccrs.PlateCarree(),
             )
+
+        # ------------------------------------------------------------------
+        # Mean overlay on anomaly maps (optional)
+        # ------------------------------------------------------------------
+        if is_anomaly and mean_overlay is not None:
+            m_lat = "latitude" if "latitude" in mean_overlay.coords else "lat"
+            m_lon = "longitude" if "longitude" in mean_overlay.coords else "lon"
+            m_lats = mean_overlay.coords[m_lat].values.copy()
+            m_lons = mean_overlay.coords[m_lon].values.copy()
+            m_vals = mean_overlay.values.copy()
+            if m_lons.max() > 180:
+                shift = m_lons > 180
+                m_lons[shift] -= 360
+                sidx = np.argsort(m_lons)
+                m_lons = m_lons[sidx]
+                if m_vals.shape == (len(m_lats), len(m_lons)):
+                    m_vals = m_vals[:, sidx]
+            if not full_globe:
+                mlm = (m_lats >= lat_min) & (m_lats <= lat_max)
+                mll = (m_lons >= lon_min) & (m_lons <= lon_max)
+                m_lats = m_lats[mlm]; m_lons = m_lons[mll]
+                if m_vals.shape == (len(m_lats[~mlm]) + mlm.sum(), len(m_lons[~mll]) + mll.sum()):
+                    m_vals = m_vals[np.ix_(mlm, mll)]
+            if _HAS_CYCLIC and full_globe:
+                try:
+                    m_vals, m_lons = add_cyclic_point(m_vals, coord=m_lons)
+                except Exception:
+                    pass
+            m_ci = _ci
+            m_levels = np.arange(
+                np.floor(m_vals.min() / m_ci) * m_ci,
+                np.ceil(m_vals.max() / m_ci) * m_ci + m_ci,
+                m_ci,
+            )
+            cl_m = ax.contour(
+                m_lons, m_lats, m_vals,
+                levels=m_levels,
+                colors="k", linewidths=0.5, alpha=0.6,
+                transform=ccrs.PlateCarree(),
+            )
+            ax.clabel(cl_m, fmt="%g", fontsize=6, inline=True)
 
         # ------------------------------------------------------------------
         # Wind vectors (quiver)

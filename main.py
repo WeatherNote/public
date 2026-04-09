@@ -62,8 +62,10 @@ def _apply_anomaly(field, var_key, months, clim_start, clim_end, plot_type):
     return anom
 
 
-def _make_map(field, wind_uv, req_dict: dict, region: dict, title: str):
+def _make_map(field, wind_uv, req_dict: dict, region: dict, title: str,
+              mean_field=None):
     """Render a map using display settings from request dict."""
+    overlay = mean_field if req_dict.get("disp_mean_overlay") else None
     return plotter.plot_map(
         data=field,
         var_key=req_dict["var_key"],
@@ -76,6 +78,7 @@ def _make_map(field, wind_uv, req_dict: dict, region: dict, title: str):
         contour_interval=req_dict.get("disp_ci") or None,
         cmap=req_dict.get("disp_cmap") or None,
         draw_labels=req_dict.get("disp_labels", True),
+        mean_overlay=overlay,
     )
 
 
@@ -134,6 +137,7 @@ class DisplaySettings(BaseModel):
     disp_ci: Optional[float] = None
     disp_cmap: Optional[str] = None
     disp_labels: bool = True
+    disp_mean_overlay: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -164,11 +168,12 @@ def composite_map(req: CompositeRequest):
         if req.multi_years and req.multi_months:
             months = sorted(req.multi_months)
             ds = fetcher.fetch_monthly(req.var_key, req.multi_years, months)
-            field = fetcher.extract(ds, req.var_key).mean(dim="time")
+            mean_field = fetcher.extract(ds, req.var_key).mean(dim="time")
             wind_uv = _get_wind_uv(ds, req.var_key)
+            field = mean_field
             if "Anomaly" in req.plot_type:
                 field = _apply_anomaly(
-                    field, req.var_key, months, req.clim_start, req.clim_end, req.plot_type
+                    mean_field, req.var_key, months, req.clim_start, req.clim_end, req.plot_type
                 )
             yrs_str = ", ".join(str(y) for y in sorted(req.multi_years))
             mon_str = ", ".join(str(m) for m in months)
@@ -193,18 +198,19 @@ def composite_map(req: CompositeRequest):
                 year_list = list(range(start.year, end.year + 1))
                 ds = fetcher.fetch_monthly(req.var_key, year_list, months)
 
-            field = fetcher.extract(ds, req.var_key).mean(dim="time")
+            mean_field = fetcher.extract(ds, req.var_key).mean(dim="time")
             wind_uv = _get_wind_uv(ds, req.var_key)
+            field = mean_field
             if "Anomaly" in req.plot_type:
                 field = _apply_anomaly(
-                    field, req.var_key, months, req.clim_start, req.clim_end, req.plot_type
+                    mean_field, req.var_key, months, req.clim_start, req.clim_end, req.plot_type
                 )
             title = (
                 f"{VARIABLES[req.var_key]['label']}\n"
                 f"{start} – {end}  •  {req.plot_type}"
             )
 
-        fig = _make_map(field, wind_uv, req_d, region, title)
+        fig = _make_map(field, wind_uv, req_d, region, title, mean_field=mean_field)
         return {"image": _fig_b64(fig)}
 
     except Exception as exc:
@@ -264,21 +270,23 @@ def find_analogs(req: AnalogRequest):
             # Target map
             try:
                 target_ds = fetcher.fetch_daily(req.var_key, start, end)
-                target_field = fetcher.extract(target_ds, req.var_key).mean(dim="time")
+                target_mean = fetcher.extract(target_ds, req.var_key).mean(dim="time")
             except Exception:
                 year_list = list(range(start.year, end.year + 1))
                 target_ds = fetcher.fetch_monthly(req.var_key, year_list, months)
-                target_field = fetcher.extract(target_ds, req.var_key).mean(dim="time")
+                target_mean = fetcher.extract(target_ds, req.var_key).mean(dim="time")
 
+            target_field = target_mean
             if "Anomaly" in req.plot_type:
                 target_field = _apply_anomaly(
-                    target_field, req.var_key, months,
+                    target_mean, req.var_key, months,
                     req.clim_start, req.clim_end, req.plot_type
                 )
             wind_uv = _get_wind_uv(target_ds, req.var_key)
             fig = _make_map(
                 target_field, wind_uv, req_d, region,
                 f"TARGET  {start} – {end}  •  {VARIABLES[req.var_key]['label']}",
+                mean_field=target_mean,
             )
             yield send({"target_image": _fig_b64(fig)})
 
@@ -289,16 +297,18 @@ def find_analogs(req: AnalogRequest):
                 y_start = analog["start_date"]
                 y_end = analog["end_date"]
                 year_ds = fetcher.fetch_monthly(req.var_key, [yr], months)
-                year_field = fetcher.extract(year_ds, req.var_key).mean(dim="time")
+                year_mean = fetcher.extract(year_ds, req.var_key).mean(dim="time")
+                year_field = year_mean
                 if "Anomaly" in req.plot_type:
                     year_field = _apply_anomaly(
-                        year_field, req.var_key, months,
+                        year_mean, req.var_key, months,
                         req.clim_start, req.clim_end, req.plot_type
                     )
                 wind_uv = _get_wind_uv(year_ds, req.var_key)
                 fig = _make_map(
                     year_field, wind_uv, req_d, region,
                     f"ANALOG {yr}  ({y_start} – {y_end})  r = {r:.3f}",
+                    mean_field=year_mean,
                 )
                 yield send({"analog_image": {"year": yr, "r": r, "image": _fig_b64(fig)}})
 

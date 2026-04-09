@@ -145,6 +145,10 @@
           <input type="checkbox" id="disp-labels" checked style="accent-color:#38bdf8" />
           <span data-i18n="lbl_show_labels"></span>
         </label>
+        <label class="radio-row" id="row-mean-overlay">
+          <input type="checkbox" id="disp-mean-overlay" style="accent-color:#38bdf8" />
+          <span data-i18n="lbl_mean_overlay"></span>
+        </label>
       </div>
     </div>
 
@@ -260,6 +264,7 @@ const I18N = {
     lbl_ci:               'Contour interval',
     lbl_cmap:             'Colormap',
     lbl_show_labels:      'Show lat/lon labels',
+    lbl_mean_overlay:     'Overlay mean contour (anomaly)',
     tab_composite:        '📊 Composite Map',
     tab_analog:           '🔍 Analog Year Finder',
     mode_single:          'Single Period',
@@ -310,6 +315,7 @@ const I18N = {
     lbl_ci:               'コンター間隔',
     lbl_cmap:             'カラーマップ',
     lbl_show_labels:      '緯度経度ラベルを表示',
+    lbl_mean_overlay:     '偏差図に平均値コンターを重ねる',
     tab_composite:        '📊 コンポジット図',
     tab_analog:           '🔍 アナログ年検索',
     mode_single:          '単一期間',
@@ -507,8 +513,9 @@ function getSettings() {
     disp_vmin:   vmin !== '' ? parseFloat(vmin) : null,
     disp_vmax:   vmax !== '' ? parseFloat(vmax) : null,
     disp_ci:     ci   !== '' ? parseFloat(ci)   : null,
-    disp_cmap:   document.getElementById('disp-cmap').value || null,
-    disp_labels: document.getElementById('disp-labels').checked,
+    disp_cmap:         document.getElementById('disp-cmap').value || null,
+    disp_labels:       document.getElementById('disp-labels').checked,
+    disp_mean_overlay: document.getElementById('disp-mean-overlay').checked,
   };
 }
 
@@ -649,11 +656,22 @@ async function findAnalogs() {
   } finally { stat.classList.add('hidden'); btn.disabled = false; }
 }
 
+// Show mean-overlay checkbox only when anomaly map type is selected
+function updateMeanOverlayVisibility() {
+  const pt = document.querySelector('input[name=maptype]:checked')?.value || '';
+  const row = document.getElementById('row-mean-overlay');
+  row.style.display = pt.includes('Anomaly') ? 'flex' : 'none';
+}
+document.querySelectorAll('input[name=maptype]').forEach(r =>
+  r.addEventListener('change', updateMeanOverlayVisibility)
+);
+
 // Enter key on multi-year input
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('multi-year-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') addYear();
   });
+  updateMeanOverlayVisibility();
 });
 
 init();
