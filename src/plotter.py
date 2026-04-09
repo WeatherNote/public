@@ -176,10 +176,30 @@ class WeatherMapPlotter:
         # Determine if this is a full-globe plot (skip set_extent)
         lat_min, lat_max = sorted(region["lat"])
         lon_min, lon_max = sorted(region["lon"])
-        full_globe = (lon_max - lon_min) >= 359 and (lat_max - lat_min) >= 179
+        full_lon = (lon_max - lon_min) >= 359
+        full_globe = full_lon and (lat_max - lat_min) >= 179
 
-        # Subset to region (skip for full-globe: keep all data for cyclic fix)
-        if not full_globe:
+        # Subset to region.
+        # For full-lon (NH, global) keep all longitudes so add_cyclic_point works.
+        if full_globe:
+            lats_sub = lats
+            lons_sub = lons
+            if vals.shape == (len(lons), len(lats)):
+                vals_sub = vals.T
+            else:
+                vals_sub = vals
+        elif full_lon:
+            # Full longitude but restricted latitude (e.g. Northern Hemisphere)
+            lat_mask = (lats >= lat_min) & (lats <= lat_max)
+            lats_sub = lats[lat_mask]
+            lons_sub = lons
+            if vals.shape == (len(lats), len(lons)):
+                vals_sub = vals[lat_mask, :]
+            elif vals.shape == (len(lons), len(lats)):
+                vals_sub = vals[:, lat_mask].T
+            else:
+                vals_sub = vals
+        else:
             lat_mask = (lats >= lat_min) & (lats <= lat_max)
             lon_mask = (lons >= lon_min) & (lons <= lon_max)
             lats_sub = lats[lat_mask]
@@ -190,16 +210,9 @@ class WeatherMapPlotter:
                 vals_sub = vals[np.ix_(lon_mask, lat_mask)].T
             else:
                 vals_sub = vals
-        else:
-            lats_sub = lats
-            lons_sub = lons
-            if vals.shape == (len(lons), len(lats)):
-                vals_sub = vals.T
-            else:
-                vals_sub = vals
 
-        # Add cyclic point to close the date-line gap
-        if _HAS_CYCLIC and full_globe:
+        # Add cyclic point to close the date-line gap (any full-longitude region)
+        if _HAS_CYCLIC and full_lon:
             try:
                 vals_sub, lons_sub = add_cyclic_point(vals_sub, coord=lons_sub)
             except Exception:
@@ -257,13 +270,22 @@ class WeatherMapPlotter:
                 m_lons = m_lons[sidx]
                 if m_vals.shape == (len(m_lats), len(m_lons)):
                     m_vals = m_vals[:, sidx]
-            if not full_globe:
+            if full_globe:
+                pass  # keep all data
+            elif full_lon:
+                mlm = (m_lats >= lat_min) & (m_lats <= lat_max)
+                m_lats = m_lats[mlm]
+                if m_vals.shape[0] == len(m_lats[~mlm]) + mlm.sum():
+                    m_vals = m_vals[mlm, :]
+            else:
                 mlm = (m_lats >= lat_min) & (m_lats <= lat_max)
                 mll = (m_lons >= lon_min) & (m_lons <= lon_max)
                 m_lats = m_lats[mlm]; m_lons = m_lons[mll]
-                if m_vals.shape == (len(m_lats[~mlm]) + mlm.sum(), len(m_lons[~mll]) + mll.sum()):
+                orig_nlat = len(m_lats[~mlm]) + mlm.sum()
+                orig_nlon = len(m_lons[~mll]) + mll.sum()
+                if m_vals.shape == (orig_nlat, orig_nlon):
                     m_vals = m_vals[np.ix_(mlm, mll)]
-            if _HAS_CYCLIC and full_globe:
+            if _HAS_CYCLIC and full_lon:
                 try:
                     m_vals, m_lons = add_cyclic_point(m_vals, coord=m_lons)
                 except Exception:
