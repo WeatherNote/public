@@ -32,6 +32,12 @@
       cursor: pointer; transition: background 0.15s;
     }
     .btn-sm:hover { background: #334155; color: #e2e8f0; }
+    .lang-btn {
+      border-radius: 6px; padding: 0.2rem 0.6rem; font-size: 0.75rem; font-weight: 700;
+      cursor: pointer; border: 1px solid #334155; background: transparent; color: #64748b;
+      transition: all 0.15s;
+    }
+    .lang-btn.active { background: #1e3a5f; border-color: #2563eb88; color: #93c5fd; }
     .spinner {
       border: 3px solid #334155; border-top-color: #38bdf8;
       border-radius: 50%; width: 22px; height: 22px;
@@ -44,9 +50,6 @@
     th { background: #0f172a; color: #64748b; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.55rem 0.9rem; text-align: left; }
     td { padding: 0.55rem 0.9rem; border-top: 1px solid #1e293b; }
     tr:hover td { background: rgba(255,255,255,0.03); }
-    details > summary { cursor: pointer; list-style: none; font-size: 0.8rem; color: #64748b; user-select: none; }
-    details > summary::-webkit-details-marker { display: none; }
-    details[open] > summary { color: #94a3b8; }
     .tag {
       display: inline-flex; align-items: center; gap: 4px;
       background: #1e3a5f; border: 1px solid #2563eb44; color: #93c5fd;
@@ -65,13 +68,20 @@
       <h1 class="text-lg font-extrabold tracking-tight" style="background:linear-gradient(90deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
         Analog Year Weather Maps
       </h1>
-      <p class="text-xs text-slate-600 mt-0.5">ERA5 reanalysis · ~5-day lag · Copernicus CDS</p>
+      <p class="text-xs text-slate-600 mt-0.5" data-i18n="subtitle">ERA5 reanalysis · ~5-day lag · Copernicus CDS</p>
     </div>
   </div>
-  <!-- Data status -->
-  <div id="status-bar" class="flex items-center gap-2 text-xs text-slate-500">
-    <span id="status-text">Checking data availability…</span>
-    <button class="btn-sm" onclick="fetchLatest()" id="btn-fetch-latest" title="Pre-fetch latest ERA5 data">🔄 Fetch latest</button>
+  <div class="flex items-center gap-3">
+    <!-- Lang toggle -->
+    <div class="flex gap-1">
+      <button class="lang-btn active" id="lang-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="lang-ja" onclick="setLang('ja')">日本語</button>
+    </div>
+    <!-- Data status -->
+    <div id="status-bar" class="flex items-center gap-2 text-xs text-slate-500">
+      <span id="status-text" data-i18n="status_checking"></span>
+      <button class="btn-sm" onclick="fetchLatest()" id="btn-fetch-latest" data-i18n="btn_fetch_latest"></button>
+    </div>
   </div>
 </header>
 
@@ -82,26 +92,26 @@
   <aside class="w-60 shrink-0 border-r border-slate-800 p-4 overflow-y-auto flex flex-col gap-4" style="background:#0c1628">
 
     <div>
-      <p class="section-title">Variable</p>
+      <p class="section-title" data-i18n="lbl_variable"></p>
       <select id="sel-var"></select>
     </div>
 
     <div>
-      <p class="section-title">Region</p>
+      <p class="section-title" data-i18n="lbl_region"></p>
       <select id="sel-region"></select>
     </div>
 
     <div>
-      <p class="section-title">Map Type</p>
-      <div id="radio-maptype" class="space-y-0.5">
-        <label class="radio-row"><input type="radio" name="maptype" value="Mean" checked /> Mean</label>
-        <label class="radio-row"><input type="radio" name="maptype" value="Anomaly (vs 1991–2020)" /> Anomaly</label>
-        <label class="radio-row"><input type="radio" name="maptype" value="Standardized Anomaly" /> Standardized Anomaly</label>
+      <p class="section-title" data-i18n="lbl_maptype"></p>
+      <div class="space-y-0.5">
+        <label class="radio-row"><input type="radio" name="maptype" value="Mean" checked /> <span data-i18n="maptype_mean"></span></label>
+        <label class="radio-row"><input type="radio" name="maptype" value="Anomaly (vs 1991–2020)" /> <span data-i18n="maptype_anom"></span></label>
+        <label class="radio-row"><input type="radio" name="maptype" value="Standardized Anomaly" /> <span data-i18n="maptype_std"></span></label>
       </div>
     </div>
 
     <div>
-      <p class="section-title">Climatology Period</p>
+      <p class="section-title" data-i18n="lbl_clim"></p>
       <select id="sel-clim">
         <option>1951–1980</option><option>1961–1990</option>
         <option>1971–2000</option><option>1981–2010</option>
@@ -111,35 +121,35 @@
 
     <!-- Display settings -->
     <div>
-      <p class="section-title">Display Settings</p>
+      <p class="section-title" data-i18n="lbl_display"></p>
       <div class="space-y-2">
         <div class="grid grid-cols-2 gap-1.5">
           <div>
             <label class="block text-xs text-slate-500 mb-0.5">vmin</label>
-            <input type="number" id="disp-vmin" placeholder="auto" step="any" />
+            <input type="number" id="disp-vmin" data-i18n-ph="auto" step="any" />
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-0.5">vmax</label>
-            <input type="number" id="disp-vmax" placeholder="auto" step="any" />
+            <input type="number" id="disp-vmax" data-i18n-ph="auto" step="any" />
           </div>
         </div>
         <div>
-          <label class="block text-xs text-slate-500 mb-0.5">Contour interval</label>
-          <input type="number" id="disp-ci" placeholder="auto" step="any" min="0" />
+          <label class="block text-xs text-slate-500 mb-0.5" data-i18n="lbl_ci"></label>
+          <input type="number" id="disp-ci" data-i18n-ph="auto" step="any" min="0" />
         </div>
         <div>
-          <label class="block text-xs text-slate-500 mb-0.5">Colormap</label>
+          <label class="block text-xs text-slate-500 mb-0.5" data-i18n="lbl_cmap"></label>
           <select id="disp-cmap"></select>
         </div>
         <label class="radio-row">
           <input type="checkbox" id="disp-labels" checked style="accent-color:#38bdf8" />
-          Show lat/lon labels
+          <span data-i18n="lbl_show_labels"></span>
         </label>
       </div>
     </div>
 
     <div class="mt-auto pt-3 border-t border-slate-800">
-      <p class="text-xs text-slate-700 leading-relaxed">
+      <p class="text-xs text-slate-700">
         Data: <a href="https://cds.climate.copernicus.eu/" target="_blank" class="text-sky-700 hover:text-sky-500">ERA5 / Copernicus CDS</a>
       </p>
     </div>
@@ -149,50 +159,48 @@
   <main class="flex-1 overflow-y-auto p-5">
     <!-- Tabs -->
     <div class="flex gap-5 border-b border-slate-800 mb-5">
-      <button class="tab-btn active font-semibold text-sm" onclick="switchTab('composite',this)">📊 Composite Map</button>
-      <button class="tab-btn font-semibold text-sm" onclick="switchTab('analog',this)">🔍 Analog Year Finder</button>
+      <button class="tab-btn active font-semibold text-sm" onclick="switchTab('composite',this)" data-i18n="tab_composite"></button>
+      <button class="tab-btn font-semibold text-sm" onclick="switchTab('analog',this)" data-i18n="tab_analog"></button>
     </div>
 
     <!-- ══ Composite ══ -->
     <div id="tab-composite">
-      <!-- Mode toggle -->
       <div class="flex gap-2 mb-4">
-        <button class="btn-sm" id="mode-single-btn" onclick="setMode('single')" style="background:#1e3a5f;border-color:#2563eb44;color:#93c5fd">Single Period</button>
-        <button class="btn-sm" id="mode-multi-btn" onclick="setMode('multi')">Multi-Year</button>
+        <button class="btn-sm" id="mode-single-btn" onclick="setMode('single')" data-i18n="mode_single" style="background:#1e3a5f;border-color:#2563eb44;color:#93c5fd"></button>
+        <button class="btn-sm" id="mode-multi-btn" onclick="setMode('multi')" data-i18n="mode_multi"></button>
       </div>
 
       <!-- Single period -->
       <div id="mode-single">
-        <p class="text-sm text-slate-400 mb-3">Choose a date range. Recent data (&lt;60 days) uses ERA5T daily; longer periods use monthly means.</p>
+        <p class="text-sm text-slate-400 mb-3" data-i18n="composite_single_desc"></p>
         <div class="grid grid-cols-2 gap-3 max-w-sm mb-4">
-          <div><label class="block text-xs text-slate-500 mb-1">Start date</label><input type="date" id="c-start" /></div>
-          <div><label class="block text-xs text-slate-500 mb-1">End date</label><input type="date" id="c-end" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_start"></label><input type="date" id="c-start" /></div>
+          <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_end"></label><input type="date" id="c-end" /></div>
         </div>
       </div>
 
       <!-- Multi-year -->
       <div id="mode-multi" class="hidden">
-        <p class="text-sm text-slate-400 mb-3">Select multiple years and months to average together.</p>
+        <p class="text-sm text-slate-400 mb-3" data-i18n="composite_multi_desc"></p>
         <div class="grid grid-cols-2 gap-4 max-w-lg mb-3">
           <div>
-            <label class="block text-xs text-slate-500 mb-1">Add year</label>
+            <label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_add_year"></label>
             <div class="flex gap-1.5">
               <input type="number" id="multi-year-input" placeholder="e.g. 2020" min="1950" max="2025" style="flex:1" />
-              <button class="btn-sm" onclick="addYear()">Add</button>
+              <button class="btn-sm" onclick="addYear()" data-i18n="btn_add"></button>
             </div>
             <div id="year-tags" class="flex flex-wrap gap-1 mt-2 min-h-[28px]"></div>
           </div>
           <div>
-            <label class="block text-xs text-slate-500 mb-1">Months</label>
-            <div id="month-checkboxes" class="grid grid-cols-4 gap-x-2 gap-y-0.5">
-            </div>
+            <label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_months"></label>
+            <div id="month-checkboxes" class="grid grid-cols-4 gap-x-2 gap-y-0.5"></div>
           </div>
         </div>
       </div>
 
-      <button class="btn-primary" id="btn-composite" onclick="drawComposite()">Draw Map</button>
+      <button class="btn-primary" id="btn-composite" onclick="drawComposite()" data-i18n="btn_draw"></button>
       <div id="composite-status" class="mt-4 hidden flex items-center gap-3 text-slate-400 text-sm">
-        <div class="spinner"></div><span>Fetching ERA5 data…</span>
+        <div class="spinner"></div><span data-i18n="status_fetching"></span>
       </div>
       <div id="composite-error" class="mt-3 hidden card p-4 text-red-300 text-sm" style="border-color:#7f1d1d;background:#450a0a22"></div>
       <div id="composite-result" class="mt-5"></div>
@@ -200,27 +208,30 @@
 
     <!-- ══ Analog ══ -->
     <div id="tab-analog" class="hidden">
-      <p class="text-sm text-slate-400 mb-4">Select a target period — the tool finds historical years with the most similar large-scale pattern.</p>
+      <p class="text-sm text-slate-400 mb-4" data-i18n="analog_desc"></p>
       <div class="grid grid-cols-2 gap-3 max-w-sm mb-3">
-        <div><label class="block text-xs text-slate-500 mb-1">Target start</label><input type="date" id="a-start" /></div>
-        <div><label class="block text-xs text-slate-500 mb-1">Target end</label><input type="date" id="a-end" /></div>
+        <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_target_start"></label><input type="date" id="a-start" /></div>
+        <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_target_end"></label><input type="date" id="a-end" /></div>
       </div>
       <div class="grid grid-cols-2 gap-3 max-w-sm mb-3">
-        <div><label class="block text-xs text-slate-500 mb-1">Number of analogs</label><input type="number" id="n-analogs" value="5" min="3" max="10" /></div>
-        <div><label class="block text-xs text-slate-500 mb-1">Search from year</label><input type="number" id="search-from" value="1950" min="1950" max="2020" /></div>
+        <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_n_analogs"></label><input type="number" id="n-analogs" value="5" min="3" max="10" /></div>
+        <div><label class="block text-xs text-slate-500 mb-1" data-i18n="lbl_search_from"></label><input type="number" id="search-from" value="1950" min="1950" max="2020" /></div>
       </div>
       <label class="radio-row mb-4">
         <input type="checkbox" id="use-anomaly" checked style="accent-color:#38bdf8" />
-        Compare anomaly fields (recommended)
+        <span data-i18n="lbl_use_anomaly"></span>
       </label>
-      <button class="btn-primary" id="btn-analog" onclick="findAnalogs()">Find Analog Years</button>
+      <button class="btn-primary" id="btn-analog" onclick="findAnalogs()" data-i18n="btn_find_analogs"></button>
       <div id="analog-status" class="mt-4 hidden flex items-center gap-3 text-slate-400 text-sm">
-        <div class="spinner"></div><span id="analog-status-text">Searching…</span>
+        <div class="spinner"></div><span id="analog-status-text" data-i18n="status_searching"></span>
       </div>
       <div id="analog-error" class="mt-3 hidden card p-4 text-red-300 text-sm" style="border-color:#7f1d1d;background:#450a0a22"></div>
       <div id="analog-table" class="mt-5 hidden card overflow-hidden">
         <table><thead><tr>
-          <th>Year</th><th>Correlation (r)</th><th>RMSE</th><th>Period</th>
+          <th data-i18n="th_year"></th>
+          <th data-i18n="th_corr"></th>
+          <th>RMSE</th>
+          <th data-i18n="th_period"></th>
         </tr></thead><tbody id="analog-tbody"></tbody></table>
       </div>
       <div id="analog-maps" class="mt-5 space-y-5"></div>
@@ -229,11 +240,152 @@
 </div>
 
 <script>
+// ── i18n ─────────────────────────────────────────────────────────
+const I18N = {
+  en: {
+    subtitle:             'ERA5 reanalysis · ~5-day lag · Copernicus CDS',
+    status_checking:      'Checking data availability…',
+    status_available:     'ERA5 available through ~{date}',
+    status_fetched:       'ERA5 available through ~{date} ✓',
+    btn_fetch_latest:     '🔄 Fetch latest',
+    btn_fetching:         '⏳ Fetching…',
+    lbl_variable:         'Variable',
+    lbl_region:           'Region',
+    lbl_maptype:          'Map Type',
+    maptype_mean:         'Mean',
+    maptype_anom:         'Anomaly',
+    maptype_std:          'Standardized Anomaly',
+    lbl_clim:             'Climatology Period',
+    lbl_display:          'Display Settings',
+    lbl_ci:               'Contour interval',
+    lbl_cmap:             'Colormap',
+    lbl_show_labels:      'Show lat/lon labels',
+    tab_composite:        '📊 Composite Map',
+    tab_analog:           '🔍 Analog Year Finder',
+    mode_single:          'Single Period',
+    mode_multi:           'Multi-Year',
+    composite_single_desc:'Choose a date range. Recent data (<60 days) uses ERA5T daily; longer periods use monthly means.',
+    composite_multi_desc: 'Select multiple years and months to average together.',
+    lbl_start:            'Start date',
+    lbl_end:              'End date',
+    lbl_add_year:         'Add year',
+    btn_add:              'Add',
+    lbl_months:           'Months',
+    btn_draw:             'Draw Map',
+    status_fetching:      'Fetching ERA5 data…',
+    err_no_year:          'Please add at least one year.',
+    err_no_month:         'Please select at least one month.',
+    err_date_order:       'Start date must be before end date.',
+    analog_desc:          'Select a target period — the tool finds historical years with the most similar large-scale pattern.',
+    lbl_target_start:     'Target start',
+    lbl_target_end:       'Target end',
+    lbl_n_analogs:        'Number of analogs',
+    lbl_search_from:      'Search from year',
+    lbl_use_anomaly:      'Compare anomaly fields (recommended)',
+    btn_find_analogs:     'Find Analog Years',
+    status_searching:     'Searching…',
+    status_plotting:      'Plotting maps…',
+    lbl_target_period:    'Target Period',
+    lbl_analog:           'Analog',
+    th_year:              'Year',
+    th_corr:              'Correlation (r)',
+    th_period:            'Period',
+    auto:                 'auto',
+  },
+  ja: {
+    subtitle:             'ERA5 再解析 · 約5日遅延 · Copernicus CDS',
+    status_checking:      'データ取得可能日を確認中…',
+    status_available:     'ERA5 データ取得可能: ~{date} まで',
+    status_fetched:       'ERA5 データ取得可能: ~{date} まで ✓',
+    btn_fetch_latest:     '🔄 最新データを取得',
+    btn_fetching:         '⏳ 取得中…',
+    lbl_variable:         '変数',
+    lbl_region:           '領域',
+    lbl_maptype:          'マップタイプ',
+    maptype_mean:         '平均値',
+    maptype_anom:         '偏差',
+    maptype_std:          '標準化偏差',
+    lbl_clim:             '平年値期間',
+    lbl_display:          '表示設定',
+    lbl_ci:               'コンター間隔',
+    lbl_cmap:             'カラーマップ',
+    lbl_show_labels:      '緯度経度ラベルを表示',
+    tab_composite:        '📊 コンポジット図',
+    tab_analog:           '🔍 アナログ年検索',
+    mode_single:          '単一期間',
+    mode_multi:           '複数年',
+    composite_single_desc:'期間を選択してください。直近60日以内はERA5T日別データ、それ以前は月別平均を使用します。',
+    composite_multi_desc: '複数の年と月を選択して平均図を作成します。',
+    lbl_start:            '開始日',
+    lbl_end:              '終了日',
+    lbl_add_year:         '年を追加',
+    btn_add:              '追加',
+    lbl_months:           '月',
+    btn_draw:             '図を描画',
+    status_fetching:      'ERA5データを取得中…',
+    err_no_year:          '年を1つ以上追加してください。',
+    err_no_month:         '月を1つ以上選択してください。',
+    err_date_order:       '開始日は終了日より前にしてください。',
+    analog_desc:          '対象期間を選択すると、大気パターンが最も似ている過去の年（アナログ年）を検索します。',
+    lbl_target_start:     '対象期間 開始',
+    lbl_target_end:       '対象期間 終了',
+    lbl_n_analogs:        'アナログ年数',
+    lbl_search_from:      '検索開始年',
+    lbl_use_anomaly:      '偏差フィールドで比較（推奨）',
+    btn_find_analogs:     'アナログ年を検索',
+    status_searching:     '検索中…',
+    status_plotting:      '図を描画中…',
+    lbl_target_period:    '対象期間',
+    lbl_analog:           'アナログ年',
+    th_year:              '年',
+    th_corr:              '相関係数 (r)',
+    th_period:            '期間',
+    auto:                 '自動',
+  },
+};
+
 // ── State ─────────────────────────────────────────────────────────
-const S = { vars: {}, regions: [], cmaps: [], mode: 'single', multiYears: new Set() };
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const S = {
+  vars: {}, regions: [], cmaps: [],
+  mode: 'single', multiYears: new Set(),
+  lang: localStorage.getItem('lang') || 'en',
+  latestDate: null,
+};
+
+function t(key, vars = {}) {
+  let s = I18N[S.lang][key] || I18N.en[key] || key;
+  for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, v);
+  return s;
+}
+
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPh);
+  });
+  // Lang buttons
+  document.getElementById('lang-en').classList.toggle('active', S.lang === 'en');
+  document.getElementById('lang-ja').classList.toggle('active', S.lang === 'ja');
+  document.documentElement.lang = S.lang;
+  // Refresh status text if date known
+  if (S.latestDate) {
+    document.getElementById('status-text').textContent =
+      t('status_available', { date: S.latestDate });
+  }
+}
+
+function setLang(lang) {
+  S.lang = lang;
+  localStorage.setItem('lang', lang);
+  applyLang();
+}
 
 // ── Init ──────────────────────────────────────────────────────────
+const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_JA = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
 async function init() {
   const [vars, regions, cmaps] = await Promise.all([
     fetch('/api/variables').then(r=>r.json()),
@@ -253,13 +405,7 @@ async function init() {
   cmaps.forEach(c => selCmap.appendChild(new Option(c, c)));
 
   // Month checkboxes
-  const mc = document.getElementById('month-checkboxes');
-  MONTHS.forEach((m, i) => {
-    const lbl = document.createElement('label');
-    lbl.className = 'radio-row text-xs';
-    lbl.innerHTML = `<input type="checkbox" class="month-cb" value="${i+1}" style="accent-color:#38bdf8"/> ${m}`;
-    mc.appendChild(lbl);
-  });
+  buildMonthCheckboxes();
 
   // Default dates
   const fmt = d => d.toISOString().split('T')[0];
@@ -269,10 +415,42 @@ async function init() {
   ['c-start','a-start'].forEach(id => document.getElementById(id).value = fmt(d30));
   ['c-end','a-end'].forEach(id   => document.getElementById(id).value = fmt(d1));
 
+  // Apply language (sets all text)
+  applyLang();
+
   // Data status
   fetch('/api/status').then(r=>r.json()).then(d => {
-    document.getElementById('status-text').textContent = `ERA5 available through ~${d.latest_available}`;
+    S.latestDate = d.latest_available;
+    document.getElementById('status-text').textContent =
+      t('status_available', { date: d.latest_available });
   }).catch(()=>{});
+}
+
+function buildMonthCheckboxes() {
+  const mc = document.getElementById('month-checkboxes');
+  mc.innerHTML = '';
+  const names = S.lang === 'ja' ? MONTHS_JA : MONTHS_EN;
+  names.forEach((m, i) => {
+    const lbl = document.createElement('label');
+    lbl.className = 'radio-row text-xs';
+    lbl.innerHTML = `<input type="checkbox" class="month-cb" value="${i+1}" style="accent-color:#38bdf8"/> ${m}`;
+    mc.appendChild(lbl);
+  });
+}
+
+// Rebuild month checkboxes on lang change (keep checked state)
+const _origSetLang = setLang;
+// Override to rebuild months
+function setLang(lang) {
+  const checked = new Set([...document.querySelectorAll('.month-cb:checked')].map(c=>c.value));
+  S.lang = lang;
+  localStorage.setItem('lang', lang);
+  buildMonthCheckboxes();
+  checked.forEach(v => {
+    const cb = document.querySelector(`.month-cb[value="${v}"]`);
+    if (cb) cb.checked = true;
+  });
+  applyLang();
 }
 
 // ── Tab switch ────────────────────────────────────────────────────
@@ -289,9 +467,8 @@ function setMode(m) {
   document.getElementById('mode-single').classList.toggle('hidden', m !== 'single');
   document.getElementById('mode-multi').classList.toggle('hidden', m !== 'multi');
   const active = 'background:#1e3a5f;border-color:#2563eb44;color:#93c5fd';
-  const inactive = '';
-  document.getElementById('mode-single-btn').style.cssText = m==='single' ? active : inactive;
-  document.getElementById('mode-multi-btn').style.cssText  = m==='multi'  ? active : inactive;
+  document.getElementById('mode-single-btn').style.cssText = m==='single' ? active : '';
+  document.getElementById('mode-multi-btn').style.cssText  = m==='multi'  ? active : '';
 }
 
 // ── Multi-year tags ───────────────────────────────────────────────
@@ -349,14 +526,14 @@ async function drawComposite() {
 
     if (S.mode === 'multi') {
       const months = [...document.querySelectorAll('.month-cb:checked')].map(c=>parseInt(c.value));
-      if (S.multiYears.size === 0) throw new Error('Please add at least one year.');
-      if (months.length === 0) throw new Error('Please select at least one month.');
+      if (S.multiYears.size === 0) throw new Error(t('err_no_year'));
+      if (months.length === 0)     throw new Error(t('err_no_month'));
       body.multi_years  = [...S.multiYears].sort();
       body.multi_months = months;
     } else {
       body.start_date = document.getElementById('c-start').value;
       body.end_date   = document.getElementById('c-end').value;
-      if (body.start_date >= body.end_date) throw new Error('Start date must be before end date.');
+      if (body.start_date >= body.end_date) throw new Error(t('err_date_order'));
     }
 
     const resp = await fetch('/api/composite', {
@@ -374,16 +551,17 @@ async function drawComposite() {
 // ── Fetch latest ─────────────────────────────────────────────────
 async function fetchLatest() {
   const btn = document.getElementById('btn-fetch-latest');
-  btn.disabled = true; btn.textContent = '⏳ Fetching…';
+  btn.disabled = true; btn.textContent = t('btn_fetching');
   try {
     const r = await fetch('/api/fetch_latest', { method: 'POST' });
     const d = await r.json();
     if (d.ok) {
+      S.latestDate = d.fetched_through;
       document.getElementById('status-text').textContent =
-        `ERA5 available through ~${d.fetched_through} ✓`;
+        t('status_fetched', { date: d.fetched_through });
     }
   } catch(e) { /* silent */ }
-  finally { btn.disabled = false; btn.textContent = '🔄 Fetch latest'; }
+  finally { btn.disabled = false; btn.textContent = t('btn_fetch_latest'); }
 }
 
 // ── Analog finder ────────────────────────────────────────────────
@@ -403,7 +581,7 @@ async function findAnalogs() {
   try {
     const aStart = document.getElementById('a-start').value;
     const aEnd   = document.getElementById('a-end').value;
-    if (aStart >= aEnd) throw new Error('Start date must be before end date.');
+    if (aStart >= aEnd) throw new Error(t('err_date_order'));
 
     const body = {
       ...getSettings(),
@@ -433,7 +611,8 @@ async function findAnalogs() {
         if (!line.startsWith('data: ')) continue;
         const msg = JSON.parse(line.slice(6));
         if (msg.error) throw new Error(msg.error);
-        if (msg.status) statText.textContent = msg.status;
+        if (msg.status) statText.textContent =
+          msg.status.includes('Plotting') ? t('status_plotting') : t('status_searching');
         if (msg.analogs) {
           tbody.innerHTML = '';
           msg.analogs.forEach(a => {
@@ -449,7 +628,7 @@ async function findAnalogs() {
         }
         if (msg.target_image) {
           const div = document.createElement('div');
-          div.innerHTML = `<p class="text-sm font-semibold text-white mb-2">Target Period</p>
+          div.innerHTML = `<p class="text-sm font-semibold text-white mb-2">${t('lbl_target_period')}</p>
             <img src="${msg.target_image}" class="rounded-xl w-full shadow-xl" />`;
           maps.prepend(div);
         }
@@ -457,7 +636,7 @@ async function findAnalogs() {
           const {year, r, image} = msg.analog_image;
           const div = document.createElement('div');
           div.innerHTML = `<p class="text-sm font-semibold text-white mb-2">
-            Analog: <span style="color:#38bdf8">${year}</span>
+            ${t('lbl_analog')}: <span style="color:#38bdf8">${year}</span>
             <span class="text-slate-500 font-normal ml-2">r = ${r.toFixed(3)}</span></p>
             <img src="${image}" class="rounded-xl w-full shadow-xl" />`;
           maps.appendChild(div);
