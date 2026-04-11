@@ -18,6 +18,7 @@ matplotlib.use("Agg")
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -27,6 +28,12 @@ from src.plotter import WeatherMapPlotter, REGIONS, COLORMAPS
 from src.analog_finder import AnalogFinder
 
 app = FastAPI(title="Analog Year Weather Maps")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 fetcher = ERA5Fetcher()
 plotter = WeatherMapPlotter()
 
