@@ -149,14 +149,16 @@ VARIABLES: dict[str, dict] = {
         "dataset_daily": "reanalysis-era5-single-levels",
         "dataset_monthly": "reanalysis-era5-single-levels-monthly-means",
         "product_type_monthly": "monthly_averaged_reanalysis",
-        "scale": 1000.0,  # m → mm (monthly total)
+        "scale": 1000.0,          # daily: sum of 6-hr accum (m/day) → mm/day
+        "scale_monthly": 24000.0, # monthly: mean hourly accum (m/hr) × 24hr × 1000 → mm/day
+        "accumulated": True,
         "offset": 0.0,
-        "units": "mm/month",
+        "units": "mm/day",
         "cmap_mean": "BuGn",
         "cmap_anom": "BrBG",
-        "contour_interval": 20,
-        "clim_range": (-60, 60),
-        "typical_range": (0, 300),
+        "contour_interval": 2,
+        "clim_range": (-5, 5),
+        "typical_range": (0, 15),
     },
     "w500": {
         "label": "500 hPa Vertical Velocity (ω)",
@@ -218,7 +220,9 @@ VARIABLES: dict[str, dict] = {
         "dataset_daily": "reanalysis-era5-single-levels",
         "dataset_monthly": "reanalysis-era5-single-levels-monthly-means",
         "product_type_monthly": "monthly_averaged_reanalysis",
-        "scale": -1.0 / 86400,  # J/m²/day → W/m²; negate (ERA5 net = down−up)
+        "scale": -1.0 / 86400,         # daily: sum of 6-hr accum (J/m²/day) ÷ 86400s → W/m²
+        "scale_monthly": -1.0 / 3600,  # monthly: mean hourly accum (J/m²/hr) ÷ 3600s → W/m²
+        "accumulated": True,
         "offset": 0.0,
         "units": "W/m²",
         "cmap_mean": "inferno_r",
@@ -375,7 +379,9 @@ class ERA5Fetcher:
 
             self.client.retrieve(var_info["dataset_monthly"], req, str(cache_path))
 
-        return self._normalize_time(xr.open_dataset(cache_path))
+        ds = self._normalize_time(xr.open_dataset(cache_path))
+        ds.attrs["_era5_monthly"] = True
+        return ds
 
     # ------------------------------------------------------------------
     # Daily means  (for recent / sub-monthly periods)
@@ -420,9 +426,13 @@ class ERA5Fetcher:
             self.client.retrieve(var_info["dataset_daily"], req, str(cache_path))
 
         ds = self._normalize_time(xr.open_dataset(cache_path))
-        # Trim to the exact requested dates and compute daily mean
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
-        ds = ds.resample(time="1D").mean()
+        # Accumulated variables (tp, OLR): sum the 6-hourly steps per day
+        # so the daily total is preserved. Instantaneous vars use mean.
+        if var_info.get("accumulated"):
+            ds = ds.resample(time="1D").sum()
+        else:
+            ds = ds.resample(time="1D").mean()
         return ds
 
     # ------------------------------------------------------------------
@@ -479,7 +489,11 @@ class ERA5Fetcher:
             raise KeyError(f"Cannot find variable for {var_key} in dataset. "
                            f"Available: {list(ds.data_vars)}")
 
-        da = da * var_info["scale"] + var_info["offset"]
+        if ds.attrs.get("_era5_monthly") and "scale_monthly" in var_info:
+            scale = var_info["scale_monthly"]
+        else:
+            scale = var_info["scale"]
+        da = da * scale + var_info["offset"]
 
         # Drop pressure-level dimension if present
         for dim_name in ("level", "pressure_level"):
