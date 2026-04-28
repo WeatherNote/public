@@ -405,8 +405,18 @@ class ERA5Fetcher:
         months = sorted({int(d.month) for d in date_range})
         days = sorted({int(d.day) for d in date_range})
 
+        # Accumulated vars (tp, ttr) are 1-hour accumulations per ERA5 step.
+        # Need all 24 hourly steps to recover a true daily total; sampling
+        # every 6 h yields only ~1/6 of the truth.
+        if var_info.get("accumulated"):
+            request_times = [f"{h:02d}:00" for h in range(24)]
+            cache_tag = f"{var_key}_24h_acc"
+        else:
+            request_times = ["00:00", "06:00", "12:00", "18:00"]
+            cache_tag = f"{var_key}_6h"
+
         cache_path = self._cache_path(
-            f"{var_key}_6h", years=years, months=months, days=days
+            cache_tag, years=years, months=months, days=days
         )
 
         if not cache_path.exists():
@@ -416,7 +426,7 @@ class ERA5Fetcher:
                 "year": [str(y) for y in years],
                 "month": [f"{m:02d}" for m in months],
                 "day": [f"{d:02d}" for d in days],
-                "time": ["00:00", "06:00", "12:00", "18:00"],
+                "time": request_times,
                 "data_format": "netcdf",
                 "grid": "2.5/2.5",
             }
@@ -427,8 +437,6 @@ class ERA5Fetcher:
 
         ds = self._normalize_time(xr.open_dataset(cache_path))
         ds = ds.sel(time=slice(str(start_date), str(end_date)))
-        # Accumulated variables (tp, OLR): sum the 6-hourly steps per day
-        # so the daily total is preserved. Instantaneous vars use mean.
         if var_info.get("accumulated"):
             ds = ds.resample(time="1D").sum()
         else:
