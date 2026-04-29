@@ -34,6 +34,20 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def no_cache_for_html(request, call_next):
+    """Disable browser caching for HTML/JS so frontend updates show immediately."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.endswith((".html", ".js", ".css")) or path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 fetcher = ERA5Fetcher()
 plotter = WeatherMapPlotter()
 

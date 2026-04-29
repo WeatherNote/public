@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Analog Year Weather Maps</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -431,11 +434,19 @@ const MONTHS_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
 const MONTHS_JA = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
 async function init() {
-  const [vars, regions, cmaps] = await Promise.all([
-    fetch(API_BASE + '/api/variables').then(r=>r.json()),
-    fetch(API_BASE + '/api/regions').then(r=>r.json()),
-    fetch(API_BASE + '/api/colormaps').then(r=>r.json()),
-  ]);
+  applyLang();  // render labels immediately, before any async work
+
+  let vars, regions, cmaps;
+  try {
+    [vars, regions, cmaps] = await Promise.all([
+      fetch(API_BASE + '/api/variables').then(r=>r.json()),
+      fetch(API_BASE + '/api/regions').then(r=>r.json()),
+      fetch(API_BASE + '/api/colormaps').then(r=>r.json()),
+    ]);
+  } catch(e) {
+    console.error('Metadata fetch failed:', e);
+    return;
+  }
   S.vars = vars; S.regions = regions; S.cmaps = cmaps;
 
   const selVar = document.getElementById('sel-var');
@@ -458,9 +469,6 @@ async function init() {
   const d1  = new Date(today); d1.setDate(d1.getDate()-1);
   ['c-start','a-start'].forEach(id => document.getElementById(id).value = fmt(d30));
   ['c-end','a-end'].forEach(id   => document.getElementById(id).value = fmt(d1));
-
-  // Apply language (sets all text)
-  applyLang();
 
   // Data status
   fetch(API_BASE + '/api/status').then(r=>r.json()).then(d => {
